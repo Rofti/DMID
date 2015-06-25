@@ -2,9 +2,6 @@
 Implementation of the overlapping community detection algorithm DMID for giraph as part of the bachelor thesis "Pregel: Parallel Implementation of Overlapping Community Detection Algorithms" at the chair of Information Systems RWTH Aachen University.
 
 
-Command:
-$HADOOP_HOME/bin/hadoop jar $GIRAPH_HOME/giraph-examples/target/giraph-examples-1.1.0-for-hadoop-1.2.1-jar-with-dependencies.jar org.apache.giraph.GiraphRunner org.apache.giraph.examples.DMIDComputation -vif org.apache.giraph.examples.io.formats.DMIDVertexInputFormat -vip /input/graphOutput.txt -vof org.apache.giraph.examples.io.formats.DMIDVertexOutputFormat -op /output -w 1 -mc org.apache.giraph.examples.utils.DMIDMasterCompute
-
 ##SETUP
 In the following, we will describe how to set up and configure Hadoop 1.2.1 and Giraph 1.1.0 on Ubuntu 64-bit.
 
@@ -294,3 +291,44 @@ In the following, we will describe how to set up and configure Hadoop 1.2.1 and 
     ```
     $ ./bin/stop-all.sh
     ```
+
+
+### Run DMID
+
+1. Download this project.
+2. Insert *'DMIDComputation.java'* in */usr/local/giraph/giraph-examples/src/main/java/org/apache/giraph/examples/*
+3. Insert *'DMIDVertexInputFormat.java'* and *'DMIDVertexOutputFormat.java'* in */usr/local/giraph/giraph-examples/src/main/java/org/apache/giraph/examples/io/formats/*
+4. Insert  *'DMIDMasterCompute.java'*, *'DMIDVertexValue.java'* and *'LongDoubleMessage.java'* in */usr/local/giraph/giraph-examples/src/main/java/org/apache/giraph/examples/utils/*
+5. Start all hadoop services:
+
+    ```
+    $ /usr/local/hadoop/bin/start-all.sh
+    ```
+6. Build Giraph and DMID:
+
+    ```
+    $ mvn package -DskipTests
+    ```
+7. Copy the input file to HDFS (Each line of the input needs to be in the form '[source_id,[[dest_id, edge_value],...]]'):
+        ```
+        $ /usr/local/hadoop/bin/hadoop dfs -copyFromLocal graph.txt /input/graph.txt
+        ```
+8. Run DMID: 
+  
+    ```
+    $HADOOP_HOME/bin/hadoop jar
+    $GIRAPH_HOME/giraph-examples/target/giraph-examples-1.1.0-for-hadoop-1.2.1-jar-with-dependencies.jar
+    org.apache.giraph.GiraphRunner
+    org.apache.giraph.examples.DMIDComputation
+    -vif org.apache.giraph.examples.io.formats.DMIDVertexInputFormat
+    -vip /input/graph.txt
+    -vof org.apache.giraph.examples.io.formats.DMIDVertexOutputFormat
+    -op /output 
+    -w 1 
+    -mc org.apache.giraph.examples.utils.DMIDMasterCompute
+    ```
+
+9. To check the output, use: 
+        ```
+        $ bin/hadoop dfs -copyToLocal /output/* ~/DMIDoutput 
+        ```
