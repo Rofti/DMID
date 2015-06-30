@@ -67,10 +67,21 @@ public class DMIDComputation
 	 * Aggregator name for the profitability threshold of the cascading behavior
 	 * phase of DMID
 	 */
-	public static final String PROFITABILITY_AGG = "aggPROFIT";
+	public static final String PROFITABILITY_AGG = "aggProfit";
 
-	/** Maximum steps for the random walk, corresponds to t*. Default = 10 */
-	public static final long RW_ITERATIONBOUND = 10;
+	/** Maximum steps for the random walk, corresponds to t*. Default = 1000 */
+	public static final long RW_ITERATIONBOUND = 1000;
+
+	/**
+	 * Aggregator name for the random walk precision factor. Stores the infinity
+	 * norm of the difference between the updated vector and the previous one.
+	 * The random walk phase ends when the aggregator stores a value smaller
+	 * than 0.001.
+	 */
+	public static final String RW_INFINITYNORM_AGG = "aggPrecision";
+	
+	/** Aggregator name. Holds the superstep on which the random walk phase finished*/
+	public static final String RW_FINISHED_AGG="aggFinishedRW";
 
 	@Override
 	public void compute(
@@ -88,22 +99,26 @@ public class DMIDComputation
 		if (getSuperstep() == 2) {
 			superstep2(vertex, messages);
 		}
-
-		if (getSuperstep() >= 3 && getSuperstep() <= RW_ITERATIONBOUND + 3) {
+		
+		double rwPrecision = ((DoubleWritable)getAggregatedValue(RW_INFINITYNORM_AGG)).get();
+		
+		if ((getSuperstep() >= 3 && getSuperstep() <= RW_ITERATIONBOUND + 3) && (getSuperstep() == 3 || rwPrecision >0.001) ) {
 			/**
 			 * TODO: Integrate a precision factor for the random walk phase. The
 			 * phase ends when the infinity norm of the difference between the
 			 * updated vector and the previous one is smaller than this factor.
-			 * TODO: Set the RW_ITERATIONBOUND appropriately.
 			 */
 			superstepRW(vertex, messages);
 		}
 
-		if (getSuperstep() == RW_ITERATIONBOUND + 4) {
+		long rwFinished = ((LongWritable)getAggregatedValue(RW_FINISHED_AGG)).get();
+		
+		
+		if (getSuperstep() == rwFinished) {
 			superstep4(vertex, messages);
 		}
 
-		if (getSuperstep() == RW_ITERATIONBOUND + 5) {
+		if (getSuperstep() == rwFinished +1) {
 			/**
 			 * Superstep 0 and RW_ITERATIONBOUND + 5 are identical. Therefore
 			 * call superstep0
@@ -111,27 +126,27 @@ public class DMIDComputation
 			superstep0(vertex, messages);
 		}
 
-		if (getSuperstep() == RW_ITERATIONBOUND + 6) {
+		if (getSuperstep() == rwFinished+2) {
 			superstep6(vertex, messages);
 		}
 
-		if (getSuperstep() == RW_ITERATIONBOUND + 7) {
+		if (getSuperstep() == rwFinished + 3) {
 			superstep7(vertex, messages);
 		}
 
 		LongWritable iterationCounter = getAggregatedValue(ITERATION_AGG);
 		double it = iterationCounter.get();
 
-		if (getSuperstep() == RW_ITERATIONBOUND + 8
-				|| (it % 3 == 1 && getSuperstep() > RW_ITERATIONBOUND + 8)) {
+		if (getSuperstep() == rwFinished +4
+				|| (it % 3 == 1 && getSuperstep() > rwFinished +4)) {
 			superstep8(vertex, messages);
 		}
-		if (getSuperstep() == RW_ITERATIONBOUND + 9
-				|| (it % 3 == 2 && getSuperstep() > RW_ITERATIONBOUND + 9)) {
+		if (getSuperstep() == rwFinished +5
+				|| (it % 3 == 2 && getSuperstep() > rwFinished +5)) {
 			superstep9(vertex, messages);
 		}
-		if (getSuperstep() == RW_ITERATIONBOUND + 10
-				|| (it % 3 == 0 && getSuperstep() > RW_ITERATIONBOUND + 10)) {
+		if (getSuperstep() == rwFinished +6
+				|| (it % 3 == 0 && getSuperstep() > rwFinished +6)) {
 			superstep10(vertex, messages);
 		}
 
@@ -271,7 +286,9 @@ public class DMIDComputation
 				(int) getTotalNumVertices());
 		newDA.set((int) vertex.getId().get(), newEntryDA);
 		aggregate(DA_AGG, newDA);
-
+		
+		DoubleWritable infinityNorm= new DoubleWritable( Math.abs(curDA.get((int)vertex.getId().get())- newEntryDA));
+		aggregate(RW_INFINITYNORM_AGG,  infinityNorm );
 	}
 
 	/**
@@ -523,10 +540,7 @@ public class DMIDComputation
 			}
 			/** profitability threshold */
 			DoubleWritable threshold = getAggregatedValue(PROFITABILITY_AGG);
-			/**
-			 * iteration counter of the cascading behavior times 3 (each
-			 * iteration are 3 steps)
-			 */
+
 			LongWritable iterationCounter = getAggregatedValue(ITERATION_AGG);
 
 			for (Map.Entry<Long, Double> entry : membershipCounter.entrySet()) {

@@ -21,7 +21,7 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 
 	private static final String RESTART_COUNTER_AGG = "aggRestart";
 	private static final double PROFTIABILITY_DELTA = 0.1;
-	private static final boolean LOG_AGGS=true;
+	private static final boolean LOG_AGGS = true;
 
 	@Override
 	public void initialize() throws InstantiationException,
@@ -48,6 +48,10 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 				DoubleMaxAggregator.class);
 		registerPersistentAggregator(RESTART_COUNTER_AGG,
 				LongMaxAggregator.class);
+		registerAggregator(DMIDComputation.RW_INFINITYNORM_AGG,
+				DoubleMaxAggregator.class);
+		registerAggregator(DMIDComputation.RW_FINISHED_AGG,
+				LongMaxAggregator.class);
 
 		setAggregatedValue(DMIDComputation.PROFITABILITY_AGG,
 				new DoubleWritable(0.9));
@@ -60,11 +64,20 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 	public void compute() {
 		/**
 		 * setAggregatorValue sets the value for the aggregator after master
-		 * compute before starting vertex compute of the same superstep Does not
-		 * work with OverwriteAggregators
+		 * compute, before starting vertex compute of the same superstep. Does
+		 * not work with OverwriteAggregators
 		 */
 
+		DoubleWritable norm = getAggregatedValue(DMIDComputation.RW_INFINITYNORM_AGG);
+
+		if (getSuperstep() > 3
+				&& (norm.get() <= 0.001 || getSuperstep() > DMIDComputation.RW_ITERATIONBOUND + 3)) {
+			setAggregatedValue(DMIDComputation.RW_FINISHED_AGG,
+					new LongWritable(getSuperstep()));
+		}
+
 		LongWritable iterCount = getAggregatedValue(DMIDComputation.ITERATION_AGG);
+		LongWritable rwFinished = getAggregatedValue(DMIDComputation.RW_FINISHED_AGG);
 		boolean hasCascadingStarted = false;
 		LongWritable newIterCount = new LongWritable((iterCount.get() + 1));
 
@@ -74,7 +87,7 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 			hasCascadingStarted = true;
 		}
 
-		if (getSuperstep() == DMIDComputation.RW_ITERATIONBOUND + 8) {
+		if (getSuperstep() == rwFinished.get()+4) {
 			setAggregatedValue(DMIDComputation.ITERATION_AGG, new LongWritable(
 					1));
 			hasCascadingStarted = true;
@@ -118,28 +131,30 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 			setAggregatedValue(DMIDComputation.NOT_ALL_ASSIGNED_AGG,
 					new BooleanWritable(false));
 		}
-		
-		if(LOG_AGGS){
-			if(getSuperstep()==DMIDComputation.RW_ITERATIONBOUND+4){
+
+		if (LOG_AGGS) {
+			if (getSuperstep() == DMIDComputation.RW_ITERATIONBOUND + 4) {
 				DoubleDenseVector convergedDA = getAggregatedValue(DMIDComputation.DA_AGG);
-				System.out.print("Aggregator DA after convergence: \nsize="+getTotalNumVertices()+"\n[ ");
-				for(int i=0;i<getTotalNumVertices();++i){
+				System.out.print("Aggregator DA after convergence: \nsize="
+						+ getTotalNumVertices() + "\n[ ");
+				for (int i = 0; i < getTotalNumVertices(); ++i) {
 					System.out.print(convergedDA.get(i));
-					if(i!=getTotalNumVertices()-1){
+					if (i != getTotalNumVertices() - 1) {
 						System.out.print(" , ");
-					}else{
+					} else {
 						System.out.println(" ]\n");
 					}
 				}
 			}
-			if(getSuperstep()==DMIDComputation.RW_ITERATIONBOUND+6){
+			if (getSuperstep() == DMIDComputation.RW_ITERATIONBOUND + 6) {
 				DoubleDenseVector leadershipVector = getAggregatedValue(DMIDComputation.LS_AGG);
-				System.out.print("Aggregator LS: \nsize="+getTotalNumVertices()+"\n[ ");
-				for(int i=0;i<getTotalNumVertices();++i){
+				System.out.print("Aggregator LS: \nsize="
+						+ getTotalNumVertices() + "\n[ ");
+				for (int i = 0; i < getTotalNumVertices(); ++i) {
 					System.out.print(leadershipVector.get(i));
-					if(i!=getTotalNumVertices()-1){
+					if (i != getTotalNumVertices() - 1) {
 						System.out.print(" , ");
-					}else{
+					} else {
 						System.out.println(" ]\n");
 					}
 				}
@@ -169,18 +184,18 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 			averageFD = (double) averageFD / numLocalLeader;
 		}
 		/** set flag for globalLeader */
-		if(LOG_AGGS){
+		if (LOG_AGGS) {
 			System.out.print("Global Leader:");
 		}
 		for (int i = 0; i < getTotalNumVertices(); ++i) {
 			if (vecFD.get(i) > averageFD) {
 				initGL.set(i, 1.0);
-				if(LOG_AGGS){
-					System.out.print("  "+i+"  ");
+				if (LOG_AGGS) {
+					System.out.print("  " + i + "  ");
 				}
 			}
 		}
-		if(LOG_AGGS){
+		if (LOG_AGGS) {
 			System.out.println("\n");
 		}
 		/** set Global Leader aggregator */
