@@ -14,15 +14,16 @@ import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
 
 /**
- * Master compute associated with {@link DMIDComputation}. It registers required
+ * Master compute associated with {@link BinarySearchDMIDComputation}. It registers required
  * aggregators.
  */
-public class DMIDMasterCompute extends DefaultMasterCompute {
+public class BinarySearchDMIDMasterCompute extends DefaultMasterCompute {
 
 	public static final String RESTART_COUNTER_AGG = "aggRestart";
-	public static final double PROFTIABILITY_DELTA = 0.1;
 	private static final boolean LOG_AGGS = true;
-
+	private static final String LOWER_PROFTIABILITYBOUND = "lowerProfitAGG";
+	private static final String UPPER_PROFTIABILITYBOUND = "upperProfitAGG";
+	
 	@Override
 	public void initialize() throws InstantiationException,
 			IllegalAccessException {
@@ -46,16 +47,20 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 
 		registerPersistentAggregator(DMIDComputation.PROFITABILITY_AGG,
 				DoubleMaxAggregator.class);
+		registerPersistentAggregator(LOWER_PROFTIABILITYBOUND,
+				DoubleMaxAggregator.class);
+		registerPersistentAggregator(UPPER_PROFTIABILITYBOUND,
+				DoubleMaxAggregator.class);
 		registerPersistentAggregator(RESTART_COUNTER_AGG,
 				LongMaxAggregator.class);
+		
 		registerAggregator(DMIDComputation.RW_INFINITYNORM_AGG,
 				DoubleMaxAggregator.class);
 		registerAggregator(DMIDComputation.RW_FINISHED_AGG,
 				LongMaxAggregator.class);
 
 		setAggregatedValue(DMIDComputation.PROFITABILITY_AGG,
-				new DoubleWritable(0.9));
-		setAggregatedValue(RESTART_COUNTER_AGG, new LongWritable(1));
+				new DoubleWritable(0.5));
 		setAggregatedValue(DMIDComputation.ITERATION_AGG, new LongWritable(0));
 
 	}
@@ -104,17 +109,31 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 				/**
 				 * RESTART Cascading Behavior with lower profitability threshold
 				 */
-
+				double lowerProfitBound= getAggregatedValue(LOWER_PROFTIABILITYBOUND);
+				double upperProfitBound= getAggregatedValue(DMIDComputation.PROFITABILITY_AGG);
+				setAggregatedValue(DMIDComputation.PROFITABILITY_AGG, new DoubleWritable((lowerProfitBound+upperProfitBound)/2d));
+				
 				long restartCount = getAggregatedValue(RESTART_COUNTER_AGG);
-				double newThreshold = 1 - (PROFTIABILITY_DELTA * (restartCount + 1));
-
 				setAggregatedValue(RESTART_COUNTER_AGG, new LongWritable(
 						restartCount + 1));
-				setAggregatedValue(DMIDComputation.PROFITABILITY_AGG,
-						new DoubleWritable(newThreshold));
+				
 				setAggregatedValue(DMIDComputation.ITERATION_AGG,
 						new LongWritable(1));
 
+			}else if((notAllAssigned.get() == false) && (newMember.get() == false)){
+				/**
+				 * Finished One cascade successfully 
+				 * */
+				double lowerProfitBound= getAggregatedValue(DMIDComputation.PROFITABILITY_AGG);
+				double upperProfitBound= getAggregatedValue(UPPER_PROFTIABILITYBOUND);
+				setAggregatedValue(DMIDComputation.PROFITABILITY_AGG, new DoubleWritable((lowerProfitBound+upperProfitBound)/2d));
+			
+				long restartCount = getAggregatedValue(RESTART_COUNTER_AGG);
+				setAggregatedValue(RESTART_COUNTER_AGG, new LongWritable(
+						restartCount + 1));
+				
+				setAggregatedValue(DMIDComputation.ITERATION_AGG,
+						new LongWritable(1));
 			}
 
 		}

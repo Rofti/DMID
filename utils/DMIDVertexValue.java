@@ -25,6 +25,10 @@ public class DMIDVertexValue implements Writable {
 	 * membership degree
 	 */
 	private HashMap<Long, Double> membershipDegree;
+	/**Only used in the binary search variant of DMID.
+	 * Stores the best valid cover found in the cascading phase.
+	 * */
+	private HashMap<Long, Double> bestValidMemDeg;
 	/**
 	 * Column of the disassortativity matrix AS with index vertex.getID() 
 	 */
@@ -58,6 +62,7 @@ public class DMIDVertexValue implements Writable {
 			HashMap<Long, Double> MembershipDegree, DoubleSparseVector disCol, Long disSize) {
 		this.weightedInDegree = weightedInDegree;
 		this.membershipDegree = MembershipDegree;
+		this.bestValidMemDeg=new HashMap<Long,Double>();
 		this.disCol = disCol;
 		this.disSize = disSize;
 	}
@@ -83,6 +88,17 @@ public class DMIDVertexValue implements Writable {
 
 			this.membershipDegree.put(leaderID, memDegree);
 		}
+		
+		memSize = input.readInt();
+		this.bestValidMemDeg = new HashMap<Long, Double>();
+
+		for (int i = 0; i < memSize; ++i) {
+			leaderID = input.readLong();
+			memDegree = input.readDouble();
+
+			this.bestValidMemDeg.put(leaderID, memDegree);
+		}
+		
 		/**
 		 * Size of the disassortativity vector disCol.
 		 */
@@ -107,6 +123,14 @@ public class DMIDVertexValue implements Writable {
 			output.writeDouble(entry.getValue());
 		}
 		
+		memSize = this.bestValidMemDeg.size();
+		output.writeInt(memSize);
+		
+		for (Map.Entry<Long, Double> entry : this.bestValidMemDeg.entrySet()) {
+			output.writeLong(entry.getKey());
+			output.writeDouble(entry.getValue());
+		}
+		
 		output.writeLong(this.disSize);
 		
 		for (int i=0; i < this.disSize; ++i) {
@@ -126,10 +150,18 @@ public class DMIDVertexValue implements Writable {
 		return membershipDegree;
 	}
 
+	public void setBestValidMemDeg(HashMap<Long, Double> bestValidMemDeg) {
+		this.bestValidMemDeg = bestValidMemDeg;
+	}
+	
+	public HashMap<Long, Double> getBestValidMemDeg() {
+		return bestValidMemDeg;
+	}
+
 	public void setMembershipDegree(HashMap<Long, Double> membershipDegree) {
 		this.membershipDegree = membershipDegree;
 	}
-
+	
 	public Long getDisSize() {
 		return this.disSize;
 	}

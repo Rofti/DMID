@@ -3,7 +3,7 @@ package org.apache.giraph.examples;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
+
 
 import org.apache.giraph.graph.BasicComputation;
 import org.apache.giraph.graph.Vertex;
@@ -420,11 +420,8 @@ public abstract class DMIDComputation
 	 * SUPERSTEP RW_IT+8: Startpoint and first iteration point of the cascading
 	 * behavior phase.
 	 **/
-	// TODO: what happens if there is no global leader(Better ask Mohsen, maybe
-	// everyone is leader? )? example case vertices: 0 and 1 both only on edge
-	// to each other with weight 1
-	// TODO: is FollowerDeg > averageFD strict?
-	private void superstep8(
+
+	void superstep8(
 			Vertex<LongWritable, DMIDVertexValue, DoubleWritable> vertex,
 			Iterable<LongDoubleMessage> messages) {
 

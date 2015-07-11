@@ -3,6 +3,8 @@ package org.apache.giraph.examples;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.giraph.aggregators.matrix.dense.DoubleDenseVector;
+import org.apache.giraph.examples.utils.DMIDMasterCompute;
 import org.apache.giraph.examples.utils.DMIDVertexValue;
 import org.apache.giraph.examples.utils.LongDoubleMessage;
 import org.apache.giraph.graph.Vertex;
@@ -11,9 +13,9 @@ import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
 
 /**
- * Implements the leadership variant of DMID.
- * Differs from the basic implementation only in the cascading behavior.
- * Profitability depends on leadership values and is not uniform.
+ * Implements the leadership variant of DMID. Differs from the basic
+ * implementation only in the cascading behavior. Profitability depends on
+ * leadership values and is not uniform.
  * */
 @Algorithm(name = "DMID leadership variant")
 public class LeadershipDMIDComputation extends DMIDComputation {
@@ -50,14 +52,18 @@ public class LeadershipDMIDComputation extends DMIDComputation {
 					membershipCounter.put(leaderID, 1.0);
 				}
 			}
+
+			DoubleDenseVector vecLS = getAggregatedValue(LS_AGG);
+			LongWritable numCascadings = getAggregatedValue(DMIDMasterCompute.RESTART_COUNTER_AGG);
 			/** profitability threshold */
-			DoubleWritable threshold = getAggregatedValue(PROFITABILITY_AGG);
+			double threshold = vecLS.get((int) vertex.getId().get())
+					- (numCascadings.get() * DMIDMasterCompute.PROFTIABILITY_DELTA);
 
 			LongWritable iterationCounter = getAggregatedValue(ITERATION_AGG);
 
 			for (Map.Entry<Long, Double> entry : membershipCounter.entrySet()) {
-				//TODO: change threshold depending on number of cascading restarts 
-				if ((entry.getValue() / vertex.getNumEdges()) > threshold.get()) {
+
+				if ((entry.getValue() / vertex.getNumEdges()) > threshold) {
 					/** its profitable to become a member, set value */
 					vertex.getValue()
 							.getMembershipDegree()
