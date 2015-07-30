@@ -6,7 +6,6 @@ import java.util.Map;
 
 /**
  * Represents a community of a cover.
- * @author Sebastian
  *
  */
 public class Community {

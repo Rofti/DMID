@@ -91,9 +91,9 @@ public class ExtendedModularityMetric {
 	 */
 	private double getNodePairModularityContribution(Cover cover, Node nodeA, Node nodeB) {
 		double edgeContribution = 0;
+		SimpleDirectedWeightedGraph<Node, Edge> graph = cover.getGraph();
 		for(int i=0; i<cover.communityCount(); i++) {
 			double coverContribution = 0;
-			SimpleDirectedWeightedGraph<Node, Edge> graph = cover.getGraph();
 			if(graph.containsEdge(nodeA, nodeB)) {
 				coverContribution += getEdgeBelongingCoefficient(cover, nodeA, nodeB, i);
 			}

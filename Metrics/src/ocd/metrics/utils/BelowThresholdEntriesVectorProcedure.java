@@ -7,7 +7,6 @@ import org.la4j.vector.functor.VectorProcedure;
 
 /**
  * Vector procedure for determining the indices of vector entries below a threshold value.
- * @author Sebastian
  *
  */
 public class BelowThresholdEntriesVectorProcedure implements VectorProcedure {

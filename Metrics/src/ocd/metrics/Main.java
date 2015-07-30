@@ -65,10 +65,10 @@ public class Main {
 			graph = readGraph(args[1]);
 			cover = readCover(graph, args[2]);
 			Cover groundTruth = readCover(graph, args[3]);
-			
+
 			cover.filterMembershipsbyThreshold(1);
 			groundTruth.filterMembershipsbyThreshold(1);
-			
+
 			ExtendedNormalizedMutualInformationMetric nmiMetric = new ExtendedNormalizedMutualInformationMetric();
 			double nmiValue = nmiMetric.measure(cover, groundTruth);
 
@@ -81,6 +81,27 @@ public class Main {
 			break;
 		case 3:
 			/**
+			 * ExtendedModularityNPNB08 -inputPathGraph -inputPathCommunities
+			 * -outputPath
+			 */
+			if (args.length != 4) {
+				throw new IllegalArgumentException(
+						"Expected arguments: -mode -inputPathGraph -inputPathCommunities -outputPath");
+			}
+			graph = readGraph(args[1]);
+			cover = readCover(graph, args[2]);
+			ExtendedModularityMetricNPNB08 modularityMetricNPNB08 = new ExtendedModularityMetricNPNB08();
+			double modularityNPNB08Value = modularityMetricNPNB08
+					.measure(cover);
+
+			output = new FileWriter(args[3], true);
+			output.write("\n" + "Graph: " + args[1] + "\tCover: " + args[2]
+					+ "\tExtendedModularityNPNB08= " + modularityNPNB08Value);
+			output.flush();
+			output.close();
+			break;
+		case 4:
+			/**
 			 * SpearmanMeasure -inputPathGraph -outputPath
 			 */
 			if (args.length != 3) {
@@ -89,6 +110,7 @@ public class Main {
 			}
 			graph = readGraph(args[1]);
 			spearmanMeasure(graph, args[2]);
+			break;
 		default:
 			break;
 		}
@@ -192,32 +214,36 @@ public class Main {
 
 		return cover;
 	}
-	
-	public static void spearmanMeasure(
-			SimpleDirectedWeightedGraph<Node, Edge> graph,
-			String outputPath) throws IOException{
-		
-		double[] dataX=new double[graph.edgeSet().size()];
-		double[] dataY=new double[graph.edgeSet().size()];
-		
-		Edge[] edges = graph.edgeSet().toArray(new Edge[graph.edgeSet().size()]);
 
-		for(int i =0; i< graph.edgeSet().size();++i){
-			if(Math.random()>(1/2d)){
-				dataX[i] = graph.degreeOf(edges[i].getSource())+Math.random();
-				dataY[i] = graph.degreeOf(edges[i].getTarget())+Math.random();
-			}else{
-				dataX[i] = graph.degreeOf(edges[i].getTarget())+Math.random();
-				dataY[i] = graph.degreeOf(edges[i].getSource())+Math.random();
+	public static void spearmanMeasure(
+			SimpleDirectedWeightedGraph<Node, Edge> graph, String outputPath)
+			throws IOException {
+
+		double[] dataX = new double[graph.edgeSet().size()];
+		double[] dataY = new double[graph.edgeSet().size()];
+
+		Edge[] edges = graph.edgeSet()
+				.toArray(new Edge[graph.edgeSet().size()]);
+
+		for (int i = 0; i < graph.edgeSet().size(); ++i) {
+			if (Math.random() > (1 / 2d)) {
+				dataX[i] = graph.degreeOf(edges[i].getSource()) + Math.random();
+				dataY[i] = graph.degreeOf(edges[i].getTarget()) + Math.random();
+			} else {
+				dataX[i] = graph.degreeOf(edges[i].getTarget()) + Math.random();
+				dataY[i] = graph.degreeOf(edges[i].getSource()) + Math.random();
 			}
 		}
-		
-		RankingAlgorithm natural=new NaturalRanking(NaNStrategy.MINIMAL, TiesStrategy.SEQUENTIAL );
-		SpearmansCorrelation spearmansCor = new SpearmansCorrelation( natural);
-		double spearmanRank= spearmansCor.correlation(dataX, dataY);
+
+		RankingAlgorithm natural = new NaturalRanking(NaNStrategy.MINIMAL,
+				TiesStrategy.SEQUENTIAL);
+		SpearmansCorrelation spearmansCor = new SpearmansCorrelation(natural);
+		double spearmanRank = spearmansCor.correlation(dataX, dataY);
 
 		FileWriter output = new FileWriter(outputPath, true);
-		output.write("\n"+outputPath+"\t Spearmans rho= "+spearmanRank +"\t Edges="+graph.edgeSet().size()+"\t Nodes= "+graph.vertexSet().size());
+		output.write("\n" + outputPath + "\t Spearmans rho= " + spearmanRank
+				+ "\t Edges=" + graph.edgeSet().size() + "\t Nodes= "
+				+ graph.vertexSet().size());
 		output.flush();
 		output.close();
 	}
