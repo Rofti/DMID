@@ -4,9 +4,13 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 import ocd.metrics.utils.Cover;
 import ocd.metrics.utils.Edge;
+import ocd.metrics.utils.EdgeFactoryDMID;
 import ocd.metrics.utils.Node;
 
 import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
@@ -14,7 +18,6 @@ import org.apache.commons.math3.stat.ranking.NaNStrategy;
 import org.apache.commons.math3.stat.ranking.NaturalRanking;
 import org.apache.commons.math3.stat.ranking.RankingAlgorithm;
 import org.apache.commons.math3.stat.ranking.TiesStrategy;
-
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -111,6 +114,19 @@ public class Main {
 			graph = readGraph(args[1]);
 			spearmanMeasure(graph, args[2]);
 			break;
+		case 5:
+			if (args.length != 3) {
+				throw new IllegalArgumentException(
+						"Expected arguments: -mode -inputPathGraph -outputPath");
+			}
+
+			graph = readGraph(args[1]);
+			System.out.println("readGraph finished");
+			graph = cleanBrokenIDs(graph);
+			System.out.println("cleanBrokenIds finished");
+			writeDMIDInputFormat(graph,args[2]);
+			
+			break;		
 		default:
 			break;
 		}
@@ -128,11 +144,16 @@ public class Main {
 		long srcID;
 		long destID;
 		long edgeCounter = 0;
-
+		boolean isDirected=true;
 		SimpleDirectedWeightedGraph<Node, Edge> graph = new SimpleDirectedWeightedGraph<Node, Edge>(
-				Edge.class);
+				new EdgeFactoryDMID());
 
 		while ((line = br.readLine()) != null) {
+			if(line.startsWith("# Undirected")){
+				System.out.println("is undirected");
+				isDirected=false;
+			}
+			
 			if (line.startsWith("# Nodes:")) {
 
 				line = line.substring(9, line.length());
@@ -154,11 +175,16 @@ public class Main {
 				Node srcNode = new Node((int) srcID);
 				Node destNode = new Node((int) destID);
 				graph.addVertex(srcNode);
-				graph.addVertex(srcNode);
+				graph.addVertex(destNode);
+				
 				graph.addEdge(srcNode, destNode);
 
+				if(!isDirected){
+					graph.addEdge(destNode, srcNode);
+				}
+					
 				edgeCounter++;
-				if (edgeCounter % 1000 == 0) {
+				if (edgeCounter % 100000 == 0) {
 					System.out.println("Line " + edgeCounter + ",  edge:"
 							+ line);
 				}
@@ -215,6 +241,47 @@ public class Main {
 		return cover;
 	}
 
+	public static void writeDMIDInputFormat(
+			SimpleDirectedWeightedGraph<Node, Edge> graph, String outputPath)
+			throws IOException {
+
+		FileWriter output = new FileWriter(outputPath, false);
+
+		Set<Edge> outgoingEdges;
+		JSONArray singleNode;
+		JSONArray singleOutEdge;
+		JSONArray allOutEdges;
+		int remainingNodes = graph.vertexSet().size();
+		System.out.println("Start writing Output");
+		for (Node node : graph.vertexSet()) {
+
+			singleNode = new JSONArray();
+			singleNode.put(node.getIndex());
+
+			outgoingEdges = graph.outgoingEdgesOf(node);
+			allOutEdges = new JSONArray();
+
+			for (Edge outEdge : outgoingEdges) {
+				
+				singleOutEdge = new JSONArray();
+				singleOutEdge.put(outEdge.getTarget().getIndex());
+				singleOutEdge.put(new Double(graph.getEdgeWeight(outEdge)));
+				
+				allOutEdges.put(singleOutEdge);
+			}
+			
+			singleNode.put(allOutEdges);
+			output.write(singleNode.toString());
+			
+			remainingNodes--;
+			if(remainingNodes !=0){
+				output.write("\n");
+			}
+		}
+		output.flush();
+		output.close();
+	}
+
 	public static void spearmanMeasure(
 			SimpleDirectedWeightedGraph<Node, Edge> graph, String outputPath)
 			throws IOException {
@@ -247,4 +314,67 @@ public class Main {
 		output.flush();
 		output.close();
 	}
+
+	public static SimpleDirectedWeightedGraph<Node, Edge> cleanBrokenIDs(
+			SimpleDirectedWeightedGraph<Node, Edge> graph) {
+		Set<Node> nodeSet = graph.vertexSet();
+		int numNodes = nodeSet.size();
+
+		HashSet<Integer> unusedIDs = new HashSet<Integer>();
+		for (int i = 0; i < numNodes; ++i) {
+			unusedIDs.add(new Integer(i));
+		}
+		System.out.println("prepared UnusedIDs");
+		System.out.println("NumNodes: "+numNodes);
+		HashSet<Node> brokenNodes = new HashSet<Node>();
+		for (Node node : nodeSet) {
+			if (node.getIndex() < numNodes) {
+				
+				unusedIDs.remove(new Integer(node.getIndex()));
+			} else {
+				brokenNodes.add(node);
+			}
+		}
+		System.out.println("identified brokenNodes");
+		if (brokenNodes.size() != unusedIDs.size()) {
+			System.out
+					.println("Error: more nodes over ID limit then unused IDs \n Ids: "+ unusedIDs.size() + " brokenNodes: "+ brokenNodes.size());
+			System.exit(0);
+		}
+
+		Iterator<Integer> iter;
+		Integer id;
+		Node fixedNode;
+		Set<Edge> outgoingB;
+		Set<Edge> incomingB;
+		System.out.println("start fixing nodes");
+		for (Node nodeB : brokenNodes) {
+			
+			nodeSet = graph.vertexSet();
+
+			iter = unusedIDs.iterator();
+			id = iter.next();
+
+			unusedIDs.remove(id);
+			fixedNode = new Node(id);
+			graph.addVertex(fixedNode);
+
+			outgoingB = graph.outgoingEdgesOf(nodeB);
+			incomingB = graph.incomingEdgesOf(nodeB);
+
+			for (Edge edge : outgoingB) {
+				graph.addEdge(fixedNode, edge.getTarget());
+			}
+
+			for (Edge edge : incomingB) {
+				graph.addEdge(edge.getSource() ,fixedNode);
+			}
+
+			graph.removeVertex(nodeB);
+
+		}
+		System.out.println("remaining unused ids: "+ unusedIDs.size());
+		return graph;
+	}
+
 }
