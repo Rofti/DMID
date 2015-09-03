@@ -4,7 +4,7 @@ import ocd.metrics.utils.Cover;
 import ocd.metrics.utils.Edge;
 import ocd.metrics.utils.Node;
 
-import org.la4j.vector.Vectors;
+import org.la4j.Vectors;
 import org.jgrapht.graph.*;
 
 /**
@@ -18,7 +18,7 @@ public class ExtendedModularityMetric {
 	public double measure(Cover cover) {
 		double metricValue = 0;
 		SimpleDirectedWeightedGraph<Node,Edge> graph = cover.getGraph();
-		Node[] nodesA = graph.vertexSet().toArray(new Node[graph.vertexSet().size()]);
+	/*	Node[] nodesA = graph.vertexSet().toArray(new Node[graph.vertexSet().size()]);
 		Node[] nodesB = graph.vertexSet().toArray(new Node[graph.vertexSet().size()]);
 		Node nodeA;
 		Node nodeB;
@@ -33,6 +33,20 @@ public class ExtendedModularityMetric {
 				j++;
 			}
 		}
+	*/
+		int counter=0;
+		for(Node nodeA : graph.vertexSet()){
+			for(Node nodeB : graph.vertexSet()){
+				if(nodeB.getIndex()<=nodeA.getIndex()){
+					counter++;
+					if(counter %10000 ==1 ){
+					System.out.println("remaining steps " +counter + " / " + (graph.vertexSet().size()*graph.vertexSet().size()+graph.vertexSet().size())/2);
+					}
+					metricValue += getNodePairModularityContribution(cover, nodeA, nodeB);
+				}
+			}
+		}
+		
 		if(graph.edgeSet().size() > 0) {
 			metricValue /= graph.edgeSet().size();
 		}
@@ -65,10 +79,10 @@ public class ExtendedModularityMetric {
 		coeff *= cover.getBelongingFactor(nodeB, communityIndex);
 		SimpleDirectedWeightedGraph<Node, Edge> graph = cover.getGraph();
 		if(nodeA.getIndex() != nodeB.getIndex()) {
-			coeff *= graph.outDegreeOf(nodeA) * graph.inDegreeOf(nodeB) + graph.inDegreeOf(nodeA) * graph.outDegreeOf(nodeB);
+			coeff *= nodeA.getOutDegree() * nodeB.getInDegree() + nodeA.getInDegree() * nodeB.getOutDegree();
 		}
 		else {
-			coeff *= graph.outDegreeOf(nodeA) * graph.inDegreeOf(nodeB);
+			coeff *= nodeA.getOutDegree() *  nodeB.getInDegree();
 		}
 		if(coeff != 0) {
 			coeff /= Math.pow(graph.vertexSet().size(), 2);

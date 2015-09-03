@@ -1,15 +1,12 @@
 package ocd.metrics.utils;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
-import org.la4j.matrix.Matrix;
+import org.la4j.Matrix;
 import org.la4j.matrix.sparse.CCSMatrix;
-import org.la4j.vector.Vector;
-import org.la4j.vector.Vectors;
-
+import org.la4j.Vector;
+import org.la4j.Vectors;
 import org.jgrapht.graph.*;
 /**
  * Represents a cover, i.e. the result of an overlapping community detection algorithm holding the community structure and graph.
@@ -20,12 +17,13 @@ public class Cover {
 	/**
 	 * The graph that the cover is based on.
 	 */
-	private SimpleDirectedWeightedGraph<Node,Edge> graph = new SimpleDirectedWeightedGraph<Node,Edge>(Edge.class);	
+	private SimpleDirectedWeightedGraph<Node,Edge> graph = new SimpleDirectedWeightedGraph<Node,Edge>(new EdgeFactoryDMID());	
 	/**
 	 * The communities forming the cover.
 	 */
-	private List<Community> communities = new ArrayList<Community>();
+	//private List<Community> communities = new ArrayList<Community>();
 	
+	private CCSMatrix memberships= new CCSMatrix();
 	/**
 	 * Creates a new instance.
 	 * @param graph The graph that the cover is based on.
@@ -71,14 +69,14 @@ public class Cover {
 	 * with respect to the community with index j. All entries are non-negative and the matrix is row-wise normalized according to the 1-norm.
 	 */
 	public Matrix getMemberships() {
-		Matrix memberships = new CCSMatrix(graph.vertexSet().size(), communities.size());
+		/*Matrix memberships = new CCSMatrix(graph.vertexSet().size(), communities.size());
 		for(int i=0; i<communities.size(); i++) {
 			Community community = communities.get(i);
 			for(Map.Entry<Node, Double> membership : community.getMemberships().entrySet()) {
 				memberships.set(membership.getKey().getIndex(), i, membership.getValue());
 			}
-		}
-		return memberships;
+		}*/
+		return this.memberships;
 	}
 	
 	/**
@@ -93,23 +91,24 @@ public class Cover {
 		if(memberships.rows() != graph.vertexSet().size()) {
 			throw new IllegalArgumentException("The row number of the membership matrix must correspond to the graph node count.");
 		}
-		communities.clear();
-		memberships = this.normalizeMembershipMatrix(memberships);
-		Node[] nodes = graph.vertexSet().toArray(new Node[graph.vertexSet().size()]);
-		for(int j=0; j<memberships.columns(); j++) {
+		//communities.clear();
+		//memberships = this.normalizeMembershipMatrix(memberships);
+
+		/*for(int j=0; j<memberships.columns(); j++) {
 			Community community = new Community();
 			communities.add(community);
 		}
-		for(int i=0; i<memberships.rows(); i++) {
+
+		for(Node node : graph.vertexSet()){
 			NonZeroEntriesVectorProcedure procedure = new NonZeroEntriesVectorProcedure();
-			memberships.getRow(i).eachNonZero(procedure);
+			memberships.getRow(node.getIndex()).eachNonZero(procedure);
 			List<Integer> nonZeroEntries = procedure.getNonZeroEntries();
 			for(int j : nonZeroEntries) {
 				Community community = communities.get(j);
-				community.setBelongingFactor(nodes[i], memberships.get(i, j));
+				community.setBelongingFactor(node, memberships.get(node.getIndex(), j));
 			}
-			
-		}
+		}*/
+		this.memberships=(CCSMatrix) memberships;
 	}
 
 	/**
@@ -117,7 +116,7 @@ public class Cover {
 	 * @return The community count.
 	 */
 	public int communityCount() {
-		return communities.size();
+		return memberships.columns();//communities.size();
 	}
 	
 	/**
@@ -127,8 +126,8 @@ public class Cover {
 	 */
 	public List<Integer> getCommunityIndices(Node node) {
 		List<Integer> communityIndices = new ArrayList<Integer>();
-		for(int j=0; j < communities.size(); j++) {
-			if(this.communities.get(j).getBelongingFactor(node) > 0) {
+		for(int j=0; j < memberships.columns()/* communities.size()*/; j++) {
+			if(memberships.get(node.getIndex(), j)/*this.communities.get(j).getBelongingFactor(node) */> 0) {
 				communityIndices.add(j);
 			}
 		}
@@ -142,7 +141,7 @@ public class Cover {
 	 * @return The belonging factor.
 	 */
 	public double getBelongingFactor(Node node, int communityIndex) {
-		return communities.get(communityIndex).getBelongingFactor(node);
+		return memberships.get(node.getIndex(), communityIndex);//communities.get(communityIndex).getBelongingFactor(node);
 	}
 	
 
@@ -153,7 +152,7 @@ public class Cover {
 	 * @param matrix The memberships matrix to be normalized and set.
 	 * @return The normalized membership matrix.
 	 */
-	protected Matrix normalizeMembershipMatrix(Matrix matrix) {
+/*	protected Matrix normalizeMembershipMatrix(Matrix matrix) {
 		List<Integer> zeroRowIndices = new ArrayList<Integer>();
 		for(int i=0; i<matrix.rows(); i++) {
 			Vector row = matrix.getRow(i);
@@ -169,13 +168,13 @@ public class Cover {
 		/*
 		 * Resizing also rows is required in case there are zero columns.
 		 */
-		matrix = matrix.resize(graph.vertexSet().size(), matrix.columns() + zeroRowIndices.size());
+	/*	matrix = matrix.resize(graph.vertexSet().size(), matrix.columns() + zeroRowIndices.size());
 		for(int i = 0; i < zeroRowIndices.size(); i++) {
 			matrix.set(zeroRowIndices.get(i), matrix.columns() - zeroRowIndices.size() + i, 1d);
 		}
 		return matrix;
 	}
-	
+	*/
 	/**
 	 * Filters the cover membership matrix by removing insignificant membership values.
 	 * The cover is then normalized and empty communities are removed. All metric results
@@ -198,7 +197,11 @@ public class Cover {
 	 * @return The size.
 	 */
 	public int getCommunitySize(int communityIndex) {
-		return communities.get(communityIndex).getSize();
+		NonZeroEntriesVectorProcedure procedure = new NonZeroEntriesVectorProcedure();
+		memberships.getColumn(communityIndex).each(procedure);
+		List<Integer> nonZeroEntries = procedure.getNonZeroEntries();
+		
+		return nonZeroEntries.size();//communities.get(communityIndex).getSize();
 	}
 	
 	/**
@@ -211,7 +214,7 @@ public class Cover {
 		Vector row = matrix.getRow(rowIndex);
 		double rowThreshold = Math.min(row.fold(Vectors.mkMaxAccumulator()), threshold);
 		BelowThresholdEntriesVectorProcedure procedure = new BelowThresholdEntriesVectorProcedure(rowThreshold);
-		row.eachNonZero(procedure);
+		row.each(procedure);
 		List<Integer> belowThresholdEntries = procedure.getBelowThresholdEntries();
 		for(int i : belowThresholdEntries) {
 			row.set(i, 0);
@@ -225,11 +228,13 @@ public class Cover {
 	 * i.e. the corresponding belonging factor equals 0 for each node.
 	 */
 	protected void removeEmptyCommunities() {
-		Iterator<Community> it = communities.iterator();
-		while(it.hasNext()) {
-			Community community = it.next();
-			if(community.getSize() == 0) {
-				it.remove();
+
+		for(int i=0; i<memberships.columns(); i++) {
+			
+			if(memberships.getColumn(i).infinityNorm()==0){
+				memberships.setColumn(i, memberships.getColumn(memberships.columns()-1));	
+				
+				memberships=(CCSMatrix)memberships.copyOfShape(memberships.rows(), memberships.columns()-1);
 			}
 		}
 	}
