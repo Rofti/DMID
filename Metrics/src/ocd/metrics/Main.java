@@ -15,6 +15,8 @@ import ocd.metrics.utils.Cover;
 import ocd.metrics.utils.Edge;
 import ocd.metrics.utils.EdgeFactoryDMID;
 import ocd.metrics.utils.Node;
+import ocd.metrics.utils.NonZeroEntriesVectorProcedure;
+import ocd.algorithm.RAWLPA.RandomWalkLabelPropagationAlgorithm;
 import ocd.algorithm.SLPA.SLPA;
 
 import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
@@ -26,6 +28,7 @@ import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.la4j.Matrix;
+import org.la4j.matrix.dense.Basic2DMatrix;
 import org.la4j.matrix.sparse.CCSMatrix;
 import org.la4j.Vector;
 import org.la4j.Vectors;
@@ -68,47 +71,80 @@ public class Main {
 			break;
 		case 2:
 			/**
-			 * NMI -inputPathGraph(DMIDFormat) -inputPathCommunities -inputPathGroundTruth
+			 * NMI -inputPathGraph(DMIDFormat) -inputPathCommunities -inputPathGroundTruth -inputpath brokenNodelist
 			 * -outputPath
 			 */
-			if (args.length != 5) {
+			if (args.length != 6) {
 				throw new IllegalArgumentException(
 						"Expected arguments: -mode -inputPathGraph -inputPathCommunities -inputPathGroundTruth -outputPath");
 			}
 
 			cover = readCoverAndGraph(args[1], args[2]);
 			
-			CCSMatrix groundTruth =new CCSMatrix(cover.getGraph().vertexSet().size(),0);
+			br=new BufferedReader(new FileReader(args[4]));
+			HashMap <Integer, Integer> brokenNodes = new HashMap<Integer, Integer>();
+			String line;
+			int brokenId;
+			int fixedId;
+			while ((line = br.readLine()) != null) {
+				brokenId = Integer.parseInt(line.substring(0, line.indexOf(" ")));
+				fixedId = Integer.parseInt(line.substring(line.indexOf(" ") + 1,
+						line.length()));
+				brokenNodes.put(brokenId,fixedId);
+			}
+			br.close();
+			System.out.println("start reading groundtruth.");
+			CCSMatrix groundTruth =new CCSMatrix(cover.getGraph().vertexSet().size(),cover.getMemberships().columns());
 			HashMap<Integer, Integer> cleanCommunityIDs = new HashMap<Integer,Integer>();
-			br = null;
 			try {
 				br=new BufferedReader(new FileReader(args[3]));
 				
-				String line;
+
 				JSONArray jsonNodeVector;
 				JSONArray jsonMembershipVector;
 				JSONArray jsonSingleMembership;
 
 				int unusedCommunityID = 0;
-				
+				int counter=0;
 				while ((line = br.readLine()) != null) {
 					// [NodeID,[[CommunityID,MembershipDegree],...]]
 					jsonNodeVector = new JSONArray(line);
 					jsonMembershipVector = jsonNodeVector.getJSONArray(1);
 					
-					for (int i = 1; i < jsonMembershipVector.length(); ++i) {
+					for (int i = 1; i < jsonMembershipVector.length() 
+							&&(brokenNodes.containsKey(jsonNodeVector.getInt(0))
+									|| jsonNodeVector.getInt(0)<groundTruth.rows())
+							; ++i) {
 						jsonSingleMembership = jsonMembershipVector.getJSONArray(i);
 						
 						if(!cleanCommunityIDs.containsKey(jsonSingleMembership.getInt(0))){
 							cleanCommunityIDs.put(jsonSingleMembership.getInt(0), unusedCommunityID);
-
-							groundTruth=(CCSMatrix)groundTruth.copyOfShape(groundTruth.rows(),unusedCommunityID+1);
-							
+							if(unusedCommunityID>=groundTruth.columns()){
+								groundTruth=(CCSMatrix)groundTruth.copyOfShape(groundTruth.rows(),unusedCommunityID+1);
+							}
 							unusedCommunityID++;
 							
 						}
-						groundTruth.set(jsonNodeVector.getInt(0), cleanCommunityIDs.get(jsonSingleMembership.getInt(0)), jsonSingleMembership.getDouble(1));
+						
+						if(brokenNodes.containsKey(jsonNodeVector.getInt(0))){
+							groundTruth.set(brokenNodes.get(jsonNodeVector.getInt(0)), cleanCommunityIDs.get(jsonSingleMembership.getInt(0)), jsonSingleMembership.getDouble(1));
+
+						}else {
+							groundTruth.set(jsonNodeVector.getInt(0), cleanCommunityIDs.get(jsonSingleMembership.getInt(0)), jsonSingleMembership.getDouble(1));
+
+						}
 					}
+
+					if(counter%10000==0){
+						System.out.println("processed nodes: "+counter+" / "+cover.getGraph().vertexSet().size());
+					}
+					counter++;
+				}
+				if(unusedCommunityID<groundTruth.columns()){
+					groundTruth=(CCSMatrix)groundTruth.copyOfShape(groundTruth.rows(),unusedCommunityID);
+				}
+				if(groundTruth.getColumn(groundTruth.columns()-1).infinityNorm()==0){
+					System.out.println("Error Reading from groundtruth....");
 				}
 				
 			} catch (IOException e) {
@@ -128,9 +164,11 @@ public class Main {
 					}
 				}
 			}
-			
-			cover.filterMembershipsbyThreshold(1);
+			System.out.println("finished reading groundtruth.");
+			System.out.println("filter illegal membership degrees in cover.");
+			//cover.filterMembershipsbyThreshold(1);
 			//filterMembershipsbyThreshold(1) for  groundtruth
+			/*System.out.println("filter illegal membership degrees in groundtruth.");
 			for(int i=0; i<groundTruth.rows(); i++) {
 				
 				Vector row = groundTruth.getRow(i);
@@ -143,12 +181,12 @@ public class Main {
 				}
 				groundTruth.setRow(i, row);
 			}
+			*/
 			
-
 			ExtendedNormalizedMutualInformationMetric nmiMetric = new ExtendedNormalizedMutualInformationMetric();
 			double nmiValue = nmiMetric.measure(cover, groundTruth);
 
-			output = new FileWriter(args[4], true);
+			output = new FileWriter(args[5], true);
 			output.write("\n" + "Graph: " + args[1].substring(args[1].lastIndexOf('/')+1, args[1].length())+ "\tCover: " 
 					+ args[2].substring(args[2].lastIndexOf('/')+1, args[2].length())
 					+ "\tgroundTruth:" + args[3].substring(args[3].lastIndexOf('/')+1, args[3].length()) + "\tNMI= " + nmiValue);
@@ -167,6 +205,7 @@ public class Main {
 			}
 			
 			cover = readCoverAndGraph(args[1], args[2]);
+
 			System.out.println("Calculate extended modularity");
 			ExtendedModularityMetricNPNB08 modularityMetricNPNB08 = new ExtendedModularityMetricNPNB08();
 			double modularityNPNB08Value = modularityMetricNPNB08
@@ -189,8 +228,9 @@ public class Main {
 				throw new IllegalArgumentException(
 						"Expected arguments: -mode -inputPathGraph -outputPath");
 			}
-			graph = readGraph(args[1]);
-			spearmanMeasure(graph, args[2]);
+			String networkName=args[1].substring(args[1].lastIndexOf('/')+1, args[1].length());
+			graph = readDMIDInputFormat(args[1]);
+			spearmanMeasure(graph, args[2], networkName);
 			break;
 		case 5:
 			if (args.length != 3) {
@@ -220,16 +260,15 @@ public class Main {
 			}
 			try {
 				br = new BufferedReader(new FileReader(args[1]));
-				String line;
 				int	unusedCommunityID=0;
-				HashMap<Integer,Node> nodeMap= new HashMap<Integer,Node>();
+				Set<Node> nodeSet= new HashSet<Node>();
 				
 				Node curNode;
 				int nodeID=-1;
 				int nextSpaceIndex;
 				while ((line = br.readLine()) != null) {
 					while(!line.isEmpty()){
-						nextSpaceIndex =line.indexOf(' ')+1;
+						nextSpaceIndex =line.indexOf('\t')+1;
 						
 						if(nextSpaceIndex!=0){
 							nodeID=Integer.parseInt(line.substring(0, nextSpaceIndex-1));
@@ -238,31 +277,31 @@ public class Main {
 							nodeID=Integer.parseInt(line);
 							line="";
 						}
-						if(nodeMap.containsKey(nodeID)){
-							curNode=nodeMap.get(nodeID);
+						curNode=new Node(nodeID);
+						if(nodeSet.contains(new Node(nodeID))){
 							curNode.addCommunity(unusedCommunityID, 1.0);
 							
 						}else{
-							curNode=new Node(nodeID);
 							curNode.addCommunity(unusedCommunityID, 1.0);
-							nodeMap.put(nodeID, curNode);
+							nodeSet.add(curNode);
 						}
 					}
 					unusedCommunityID++;
 				}
+				
 				output = new FileWriter(args[2], false);
 				JSONArray jsonNode;
 				JSONArray jsonMemberships;
 				JSONArray jsonSingleDegree;
-				int remainingNodes=nodeMap.size();
-				for(Integer nodeIndex : nodeMap.keySet()){
+				int remainingNodes=nodeSet.size();
+				for(Node node : nodeSet){
 					jsonNode= new JSONArray();
-					jsonNode.put(nodeIndex);
+					jsonNode.put(node.getIndex());
 					jsonMemberships=new JSONArray();
-					for(Integer communityID : nodeMap.get(nodeIndex).getOwnCommunities().keySet()){
+					for(Integer communityID : node.getOwnCommunities().keySet()){
 						jsonSingleDegree=new JSONArray();
 						jsonSingleDegree.put(communityID);
-						jsonSingleDegree.put(nodeMap.get(nodeIndex).getOwnCommunities().get(communityID));
+						jsonSingleDegree.put(node.getOwnCommunities().get(communityID));
 						jsonMemberships.put(jsonSingleDegree);
 					}
 					jsonNode.put(jsonMemberships);
@@ -284,11 +323,116 @@ public class Main {
 				}
 			}
 			break;
+		case 8:
+			if (args.length != 4) {
+				throw new IllegalArgumentException(
+						"Expected arguments: -mode -inputPathgraph -outputPathCover -outputPathRuntime");
+			}
+			networkName=args[1].substring(args[1].lastIndexOf('/')+1, args[1].length());
+			
+			graph=readDMIDInputFormat(args[1]);
+			//graph=cleanBrokenIDs(graph,0);
+		
+			//Time in milliseconds when algorithm is started (after reading input)
+			long startTime = System.currentTimeMillis();		
+			
+			System.out.println("Starting RAWLPA");
+			RandomWalkLabelPropagationAlgorithm rawLpa = new RandomWalkLabelPropagationAlgorithm();
+			cover = rawLpa.detectOverlappingCommunities(graph);
+			
+			//Time in milliseconds when algorithm terminates (before writing output)
+			long endTime = System.currentTimeMillis();
+			long totalTime = endTime - startTime;
+			
+			System.out.println("Ending the RAWLPA \nRun-Time in seconds: "+ (totalTime/1000) +"\n");
+			
+			Matrix memberships=cover.getMemberships();
+			
+			output = new FileWriter(args[2], false);
+			JSONArray jsonNode; // [NodeID, jsonCommunityArray]
+			JSONArray jsonCommunityArray; // [JsonMemDeg_1,...,JsonMemDeg_n] only those with MemDeg>0 
+			JSONArray jsonMemDeg; // [Community ID , Membership Degree] 
+			
+			for(int i =0; i < memberships.rows();++i){
+				jsonNode=new JSONArray();
+				jsonNode.put(i);
+				
+				NonZeroEntriesVectorProcedure procedure = new NonZeroEntriesVectorProcedure();
+				memberships.getRow(i).each(procedure);
+				List<Integer> nonZeroEntries = procedure.getNonZeroEntries();
+				
+				jsonCommunityArray=new JSONArray();
+				for(int j : nonZeroEntries) {
+
+					jsonMemDeg=new JSONArray();
+					jsonMemDeg.put(j);
+					jsonMemDeg.put(memberships.get(i,j));
+					jsonCommunityArray.put(jsonMemDeg);
+				}
+				jsonNode.put(jsonCommunityArray);
+				
+				output.write(jsonNode.toString());
+				if(i != memberships.rows()-1){
+					output.write("\n");
+				}
+			}
+			output.flush();
+			output.close();
+			
+			output = new FileWriter(args[3], true);
+			output.write(networkName+"\t RunTime(seconds):  "+(totalTime/1000)+"\n");
+			output.flush();
+			output.close();
+			
+			break;
+		case 9: 
+			br = new BufferedReader(new FileReader(args[1]));
+			int srcID;
+			int destID;
+			graph=new SimpleDirectedWeightedGraph<Node, Edge>(new EdgeFactoryDMID());
+			boolean isDirected=false;
+			
+			while ((line = br.readLine()) != null) {
+				if(line.startsWith("  directed ")){
+					line=line.substring(line.lastIndexOf(" ")+1,line.length() );
+					isDirected=(Integer.parseInt(line)==1);
+					System.out.println("isDirected: "+isDirected);
+				}
+				if(line.startsWith("    source ")){
+					line=line.substring(line.lastIndexOf(" ")+1,line.length() );
+					srcID = Integer.parseInt(line);
+					
+					line=br.readLine();
+					line=line.substring(line.lastIndexOf(" ")+1,line.length() );
+					destID = Integer.parseInt(line);
+					
+					if(destID!=srcID){
+						graph.addVertex(new Node(srcID));
+						graph.addVertex(new Node(destID));
+						graph.addEdge(new Node(srcID), new Node(destID));
+						if(!isDirected){
+							graph.addEdge( new Node(destID),new Node(srcID));
+						}
+					}
+				}
+			}
+			System.out.println("numNodes: "+graph.vertexSet().size() +"\t"+"numEdges: "+graph.edgeSet().size());
+			
+			graph=cleanBrokenIDs(graph, 0);
+			
+			writeDMIDInputFormat(graph, args[2]);
+			
+			networkName=args[1].substring(args[1].lastIndexOf('/')+1, args[1].length());
+			output = new FileWriter("/home/hduser/Thesis/UCINet/NodesAndEdges.txt", true);
+			output.write(networkName+"\t Nodes:  "+graph.vertexSet().size()+"\t Edges: "+(isDirected? graph.edgeSet().size() :graph.edgeSet().size()/2)+"\n");
+			output.flush();
+			output.close();
+			break;
 		default:
 			graph=readGraph(args[1]);
 			graph=cleanBrokenIDs(graph,1);
 			output =  new FileWriter(args[2], false);
-			int currentEdge=0;
+			int currentEdge=1;
 			
 			for(Edge edge : graph.edgeSet()){
 				/*if(graph.containsEdge(edge.getTarget(), edge.getSource())){
@@ -317,6 +461,7 @@ public class Main {
 		}
 
 	}
+
 
 	private static SimpleDirectedWeightedGraph<Node, Edge> readGraph(
 			String inputPath) throws NumberFormatException, IOException {
@@ -359,9 +504,10 @@ public class Main {
 
 				Node srcNode = new Node((int) srcID);
 				Node destNode = new Node((int) destID);
-				graph.addVertex(srcNode);
-				graph.addVertex(destNode);
 				if(srcID != destID){
+					graph.addVertex(srcNode);
+					graph.addVertex(destNode);
+
 					graph.addEdge(srcNode, destNode);
 
 					if(!isDirected){
@@ -384,11 +530,11 @@ public class Main {
 		return graph;
 	}
 
-	private static Cover readCoverAndGraph(	String inputPathGraph, String inputPathCommunities) {
+	private static Cover readCoverAndGraph(	String inputPathGraph, String inputPathCommunities) throws IOException, JSONException {
 		
 		System.out.println("Start reading Cover: "+inputPathCommunities);
-		SimpleDirectedWeightedGraph<Node, Edge> graph=new SimpleDirectedWeightedGraph<Node, Edge>(new EdgeFactoryDMID());
 		
+		Cover cover = new Cover(new SimpleDirectedWeightedGraph<Node, Edge>(new EdgeFactoryDMID()));
 		HashMap<Integer, Integer> cleanCommunityIDs = new HashMap<Integer,Integer>();
 		
 		BufferedReader br = null;
@@ -412,7 +558,7 @@ public class Main {
 				
 				jsonMembershipVector = jsonNodeVector.getJSONArray(1);
 				
-				for (int i = 1; i < jsonMembershipVector.length(); ++i) {
+				for (int i = 0; i < jsonMembershipVector.length(); ++i) {
 					
 					jsonSingleMembership = jsonMembershipVector.getJSONArray(i);
 					
@@ -425,7 +571,7 @@ public class Main {
 					node.addCommunity(cleanCommunityIDs.get(jsonSingleMembership.getInt(0)), jsonSingleMembership.getDouble(1));
 				}
 				
-				graph.addVertex(node);
+				cover.getGraph().addVertex(node);
 			}
 			
 			br.close();
@@ -453,20 +599,102 @@ public class Main {
 					
 					Node srcNode = new Node((int) source);
 					Node destNode = new Node((int) dest);
-					
-					graph.addEdge(srcNode, destNode);
+
+					cover.getGraph().addEdge(srcNode, destNode);
+
 					
 				}
 				
 				line = br.readLine();
 			}
 			
-		} catch (IOException e) {
+		/*} catch (IOException e) {
 			System.out.println("Error Reading from the file. Exiting....");
 			System.exit(0);
 		
 		} catch (JSONException e){
 			System.out.println("Error Reading from the file. Exiting....");
+			System.exit(0);
+			*/
+		} finally {
+			if (br != null) {
+				try {
+					br.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		
+		System.out.println("Creation of the graph complete.");
+		
+		
+		Matrix memberships = new /*CCSMatrix*/Basic2DMatrix(cover.getGraph().vertexSet().size(),cleanCommunityIDs.size());
+		
+		System.out.println("Create membership matrix");
+		HashMap<Integer, Double> communities;
+		int nodeCounter=0;
+		int numNodes =cover.getGraph().vertexSet().size();
+		for(Node node : cover.getGraph().vertexSet()){
+			communities = node.getOwnCommunities();
+			for(Integer communityID : communities.keySet()){
+				memberships.set(node.getIndex(), communityID,communities.get(communityID));	
+			}
+			node.setInDegree(cover.getGraph().inDegreeOf(node));
+			node.setOutDegree(cover.getGraph().outDegreeOf(node));
+			nodeCounter++;
+			if(nodeCounter% 100000 == 0){
+				System.out.println("processed node  "+nodeCounter+" / "+numNodes);
+			}
+		}
+
+		cover.setMemberships(memberships);
+		return cover;
+	}
+	
+	public static SimpleDirectedWeightedGraph<Node, Edge>  readDMIDInputFormat(String filepath){
+		System.out.println("Reading from the input file and creating graph...");
+		SimpleDirectedWeightedGraph<Node, Edge>  graph = new SimpleDirectedWeightedGraph<Node, Edge> (new EdgeFactoryDMID());
+		BufferedReader br = null;
+		try {
+			br = new BufferedReader(new FileReader(filepath));
+			String line;
+
+			JSONArray jsonNode;
+			JSONArray jsonEdgeArray;
+			JSONArray jsonSingleEdge;
+			
+			line = br.readLine();
+			while(line!=null){
+			
+				jsonNode= new JSONArray(line);
+				jsonEdgeArray = jsonNode.getJSONArray(1);
+				
+				int source = jsonNode.getInt(0);
+				
+				for(int i = 0 ; i<jsonEdgeArray.length();++i){
+					
+					jsonSingleEdge=jsonEdgeArray.getJSONArray(i);
+					int dest=jsonSingleEdge.getInt(0);
+					
+					graph.addVertex(new Node(source));
+					graph.addVertex(new Node(dest));
+					graph.addEdge(new Node(source), new Node(dest));
+				}
+				if(jsonEdgeArray.length()==0){
+					graph.addVertex(new Node(source));
+				}
+				line = br.readLine();
+			}
+			
+			System.out.println("Number of vertices are:" +graph.vertexSet().size());
+
+		} catch (IOException e) {
+			System.out.println("Error Reading from the file.Exiting....");
+			System.exit(0);
+		
+		} catch (JSONException e){
+			System.out.println("Error Reading from the file. File not in DMID-InputFormat. Exiting....");
 			System.exit(0);
 			
 		} finally {
@@ -480,32 +708,8 @@ public class Main {
 		}
 		
 		System.out.println("Creation of the graph complete.");
-		
-		Cover cover = new Cover(graph);
-		Matrix memberships = new CCSMatrix(graph.vertexSet().size(),cleanCommunityIDs.size());
-		
-		System.out.println("Create membership matrix");
-		HashMap<Integer, Double> communities;
-		int nodeCounter=0;
-		int numNodes =graph.vertexSet().size();
-		for(Node node : graph.vertexSet()){
-			communities = node.getOwnCommunities();
-			for(Integer communityID : communities.keySet()){
-				memberships.set(node.getIndex(), communityID,communities.get(communityID));	
-			}
-			node.setInDegree(graph.inDegreeOf(node));
-			node.setOutDegree(graph.outDegreeOf(node));
-			nodeCounter++;
-			if(nodeCounter% 10000 == 0){
-				System.out.println("processed node  "+nodeCounter+" / "+numNodes);
-			}
-		}
-		nodeCounter=0;
-
-		cover.setMemberships(memberships);
-		return cover;
+		return graph;
 	}
-
 	public static void writeDMIDInputFormat(
 			SimpleDirectedWeightedGraph<Node, Edge> graph, String outputPath)
 			throws IOException {
@@ -548,7 +752,7 @@ public class Main {
 	}
 
 	public static void spearmanMeasure(
-			SimpleDirectedWeightedGraph<Node, Edge> graph, String outputPath)
+			SimpleDirectedWeightedGraph<Node, Edge> graph, String outputPath,String networkName)
 			throws IOException {
 
 		double[] dataX = new double[graph.edgeSet().size()];
@@ -558,13 +762,10 @@ public class Main {
 				.toArray(new Edge[graph.edgeSet().size()]);
 
 		for (int i = 0; i < graph.edgeSet().size(); ++i) {
-			if (Math.random() > (1 / 2d)) {
-				dataX[i] = graph.degreeOf(edges[i].getSource()) + Math.random();
-				dataY[i] = graph.degreeOf(edges[i].getTarget()) + Math.random();
-			} else {
-				dataX[i] = graph.degreeOf(edges[i].getTarget()) + Math.random();
-				dataY[i] = graph.degreeOf(edges[i].getSource()) + Math.random();
-			}
+
+				dataX[i] = graph.outDegreeOf(edges[i].getSource()) + Math.random();
+				dataY[i] = graph.inDegreeOf(edges[i].getTarget()) + Math.random();
+			
 		}
 
 		RankingAlgorithm natural = new NaturalRanking(NaNStrategy.MINIMAL,
@@ -573,7 +774,7 @@ public class Main {
 		double spearmanRank = spearmansCor.correlation(dataX, dataY);
 
 		FileWriter output = new FileWriter(outputPath, true);
-		output.write("\n" + outputPath + "\t Spearmans rho= " + spearmanRank
+		output.write("\n" + networkName + "\t Spearmans rho= " + spearmanRank
 				+ "\t Edges=" + graph.edgeSet().size() + "\t Nodes= "
 				+ graph.vertexSet().size());
 		output.flush();
@@ -581,7 +782,7 @@ public class Main {
 	}
 
 	private static SimpleDirectedWeightedGraph<Node, Edge> cleanBrokenIDs(
-			SimpleDirectedWeightedGraph<Node, Edge> graph, int startID) {
+			SimpleDirectedWeightedGraph<Node, Edge> graph, int startID) throws IOException {
 		Set<Node> nodeSet = graph.vertexSet();
 		int numNodes = nodeSet.size();
 
@@ -614,6 +815,8 @@ public class Main {
 		Set<Edge> outgoingB;
 		Set<Edge> incomingB;
 		System.out.println("start fixing nodes");
+		FileWriter output =  new FileWriter("BrokenNodeList.txt", false);
+		int counter=1;
 		for (Node nodeB : brokenNodes) {
 			
 			nodeSet = graph.vertexSet();
@@ -624,7 +827,11 @@ public class Main {
 			unusedIDs.remove(id);
 			fixedNode = new Node(id);
 			graph.addVertex(fixedNode);
-
+			
+			output.write(nodeB.getIndex() +" "+ id);
+			if(counter <brokenNodes.size()){
+				output.write("\n");
+			}
 			outgoingB = graph.outgoingEdgesOf(nodeB);
 			incomingB = graph.incomingEdgesOf(nodeB);
 			
@@ -637,8 +844,10 @@ public class Main {
 			}
 
 			graph.removeVertex(nodeB);
-
+			counter++;
 		}
+		output.flush();
+		output.close();
 		System.out.println("remaining unused ids: "+ unusedIDs.size());
 		return graph;
 	}

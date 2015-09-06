@@ -34,13 +34,15 @@ public class ExtendedModularityMetric {
 			}
 		}
 	*/
-		int counter=0;
+		long counter=0;
+		long laststep=((long) graph.vertexSet().size())*((long)graph.vertexSet().size())+graph.vertexSet().size();
+		laststep=laststep/2;
 		for(Node nodeA : graph.vertexSet()){
 			for(Node nodeB : graph.vertexSet()){
 				if(nodeB.getIndex()<=nodeA.getIndex()){
 					counter++;
-					if(counter %10000 ==1 ){
-					System.out.println("remaining steps " +counter + " / " + (graph.vertexSet().size()*graph.vertexSet().size()+graph.vertexSet().size())/2);
+					if(counter %1000000 ==1 ){
+						System.out.println("remaining steps " +counter/1000000 + " / " + laststep/1000000);
 					}
 					metricValue += getNodePairModularityContribution(cover, nodeA, nodeB);
 				}

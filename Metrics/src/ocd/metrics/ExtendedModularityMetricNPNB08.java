@@ -14,38 +14,25 @@ public class ExtendedModularityMetricNPNB08 {
 	public double measure(Cover cover) {
 		double metricValue = 0;
 		SimpleDirectedWeightedGraph<Node, Edge> graph = cover.getGraph();
-		/*Node[] nodesA = graph.vertexSet().toArray(
-				new Node[graph.vertexSet().size()]);
-		Node[] nodesB = graph.vertexSet().toArray(
-				new Node[graph.vertexSet().size()]);
-		Node nodeA;
-		Node nodeB;
-		int j = 0;
-		for (int i = 0; i < nodesA.length; ++i) {
-			nodeA = nodesA[i];
-			j = 0;
-			while (j <= i) {
-				nodeB = nodesB[j];
-				metricValue += getNodePairModularityContribution(cover, nodeA,
-						nodeB);
-				j++;
-			}
-		}*/
-		int counter=0;
+
+		long counter=0;
+		long laststep=((long) graph.vertexSet().size())*((long)graph.vertexSet().size())+graph.vertexSet().size();
+
+		cover.normalizeMembershipMatrix(cover.getMemberships());
 		for(Node nodeA : graph.vertexSet()){
 			for(Node nodeB : graph.vertexSet()){
-				if(nodeB.getIndex()<=nodeA.getIndex()){
+
 					counter++;
-					if(counter %1000000 ==1 ){
-					System.out.println("remaining steps " +counter + " / " + (graph.vertexSet().size()*graph.vertexSet().size()+graph.vertexSet().size())/2);
+					if(counter %10000 ==1 ){
+					System.out.println("remaining steps " +counter/10000 + " / " + laststep/10000);
 					}
 					metricValue += getNodePairModularityContribution(cover, nodeA, nodeB);
-				}
+
 			}
 		}
 		
 		if (graph.edgeSet().size() > 0) {
-			metricValue /= graph.edgeSet().size();
+			metricValue /= (graph.edgeSet().size()*2);
 		}
 		return metricValue;
 	}
@@ -59,31 +46,28 @@ public class ExtendedModularityMetricNPNB08 {
 		double degProduct;
 		double comembership = 0;
 
-		/*for (int i = 0; i < cover.communityCount(); i++) {
-			comembership += cover.getBelongingFactor(nodeA, i)//made faster, runs only over one nodes communities
-					* cover.getBelongingFactor(nodeB, i);
-		}*/
-		for(Integer comID : nodeA.getOwnCommunities().keySet()){
-			if(nodeB.getOwnCommunities().get(comID)!=null){
-				comembership += nodeA.getOwnCommunities().get(comID) 
-						* nodeB.getOwnCommunities().get(comID) ;
-			}
-		}
-
-		if (graph.containsEdge(nodeA, nodeB)){
-			degProduct = nodeA.getInDegree() * nodeB.getInDegree();//TODO: ursprunglich nur degree aber das gibts nich bei directed
-			edgeContribution = (1.0 - (degProduct / (graph.edgeSet().size() * 2)));
-			contribution = edgeContribution * comembership;
+		for(Integer comID : cover.getCommunityIndices(nodeA)){
 			
-			if(graph.containsEdge(nodeB, nodeA)){
-				contribution *= 2;
+			if( cover.getCommunityIndices(nodeB).contains(comID)){
+				try{
+				comembership += (nodeA.getOwnCommunities().get(comID)
+						* nodeB.getOwnCommunities().get(comID)) ;
+				}catch(Exception e){
+					System.out.println("nodaA: "+nodeA.getIndex()+" "+(nodeA.getOwnCommunities()==null) +" nodeB "+nodeB.getIndex()+" "+ (nodeB.getOwnCommunities()==null) );
+					System.exit(0);
+				}
 			}
 		}
-		else if(graph.containsEdge(nodeB, nodeA)){
-			degProduct = nodeA.getInDegree() * nodeB.getInDegree();//TODO
-			edgeContribution = (1.0 - (degProduct / (graph.edgeSet().size() * 2)));
-			contribution = edgeContribution * comembership;
-		}
+		
+		double adjancencyEntry=0;
+		if (graph.containsEdge(nodeA, nodeB)){
+			adjancencyEntry=1;
+		}	
+
+		degProduct = nodeA.getInDegree() * nodeB.getInDegree();//TODO: ursprunglich nur degree aber das gibts nich bei directed
+		edgeContribution = (adjancencyEntry- (degProduct / (graph.edgeSet().size() *2 )));
+		contribution = edgeContribution * comembership;
+			
 			
 		return contribution;
 	}

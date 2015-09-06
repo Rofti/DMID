@@ -73,7 +73,9 @@ public class Graph {
 					
 					addEdge(source, dest);
 				}
-				
+				if(jsonEdgeArray.length()==0){
+					addNode(source);
+				}
 				line = br.readLine();
 			}
 			
@@ -122,6 +124,20 @@ public class Graph {
 		//Add an entry into the adjacenecy list.
 		sourceNode.addNeighbour(destNode);
 		destNode.addNeighbour(sourceNode);
+	}
+	
+	/**
+	 * This method adds a single node into the graph data structure.
+	 * @param source
+	 * @param dest
+	 */
+	private void addNode(Integer nodeID) {
+		//Check if source node exists else create a new one.
+		Node node = graphADT.get(nodeID);
+		if (node == null) {	
+			node = new Node(nodeID);
+			graphADT.put(nodeID, node);
+		}
 	}
 
 	/**

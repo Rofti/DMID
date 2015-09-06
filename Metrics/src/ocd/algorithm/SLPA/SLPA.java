@@ -156,6 +156,9 @@ public class SLPA {
 				Node listener = graph.getNode(j);
 				// Call listen so that all neighbours can speak to this node by
 				// sending selected label.
+				if(listener == null){
+					System.out.println("NodeID missing: "+j);
+				}
 				listener.listen();
 			}
 		}

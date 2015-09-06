@@ -27,6 +27,7 @@ public class Node {
 	public Node(int index) {
 		super();
 		this.index = index;
+		this.ownCommunities=new HashMap<Integer, Double>();
 	}
 	
 	public HashMap<Integer, Double> getOwnCommunities() {

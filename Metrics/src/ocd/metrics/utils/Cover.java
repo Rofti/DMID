@@ -2,6 +2,7 @@ package ocd.metrics.utils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.la4j.Matrix;
 import org.la4j.matrix.sparse.CCSMatrix;
@@ -23,7 +24,7 @@ public class Cover {
 	 */
 	//private List<Community> communities = new ArrayList<Community>();
 	
-	private CCSMatrix memberships= new CCSMatrix();
+	private Matrix memberships= new CCSMatrix();
 	/**
 	 * Creates a new instance.
 	 * @param graph The graph that the cover is based on.
@@ -108,7 +109,7 @@ public class Cover {
 				community.setBelongingFactor(node, memberships.get(node.getIndex(), j));
 			}
 		}*/
-		this.memberships=(CCSMatrix) memberships;
+		this.memberships=memberships;
 	}
 
 	/**
@@ -141,7 +142,7 @@ public class Cover {
 	 * @return The belonging factor.
 	 */
 	public double getBelongingFactor(Node node, int communityIndex) {
-		return memberships.get(node.getIndex(), communityIndex);//communities.get(communityIndex).getBelongingFactor(node);
+		return memberships.get(node.getIndex(), communityIndex);
 	}
 	
 
@@ -152,7 +153,7 @@ public class Cover {
 	 * @param matrix The memberships matrix to be normalized and set.
 	 * @return The normalized membership matrix.
 	 */
-/*	protected Matrix normalizeMembershipMatrix(Matrix matrix) {
+	public void normalizeMembershipMatrix(Matrix matrix) {
 		List<Integer> zeroRowIndices = new ArrayList<Integer>();
 		for(int i=0; i<matrix.rows(); i++) {
 			Vector row = matrix.getRow(i);
@@ -168,13 +169,35 @@ public class Cover {
 		/*
 		 * Resizing also rows is required in case there are zero columns.
 		 */
-	/*	matrix = matrix.resize(graph.vertexSet().size(), matrix.columns() + zeroRowIndices.size());
+		matrix = matrix.copyOfShape(graph.vertexSet().size(), matrix.columns() + zeroRowIndices.size());
+
+		Node curNode;
+		Set<Edge> outEdges;
+		Set<Edge> inEdges;
 		for(int i = 0; i < zeroRowIndices.size(); i++) {
 			matrix.set(zeroRowIndices.get(i), matrix.columns() - zeroRowIndices.size() + i, 1d);
+			
+			
+			curNode=new Node(zeroRowIndices.get(i));
+			curNode.setInDegree(graph.inDegreeOf(curNode));
+			curNode.setOutDegree(graph.outDegreeOf(curNode));
+			curNode.addCommunity(matrix.columns() - zeroRowIndices.size() + i, 1d);
+			
+			outEdges=graph.outgoingEdgesOf(curNode);
+			inEdges=graph.incomingEdgesOf(curNode);
+			graph.removeVertex(curNode);
+			graph.addVertex(curNode);
+			
+			for(Edge edge:outEdges){
+				graph.addEdge(edge.getSource(), edge.getTarget());
+			}
+			for(Edge edge:inEdges){
+				graph.addEdge(edge.getSource(), edge.getTarget());
+			}
 		}
-		return matrix;
+		this.setMemberships(matrix);
 	}
-	*/
+	
 	/**
 	 * Filters the cover membership matrix by removing insignificant membership values.
 	 * The cover is then normalized and empty communities are removed. All metric results
@@ -234,7 +257,7 @@ public class Cover {
 			if(memberships.getColumn(i).infinityNorm()==0){
 				memberships.setColumn(i, memberships.getColumn(memberships.columns()-1));	
 				
-				memberships=(CCSMatrix)memberships.copyOfShape(memberships.rows(), memberships.columns()-1);
+				memberships=memberships.copyOfShape(memberships.rows(), memberships.columns()-1);
 			}
 		}
 	}
