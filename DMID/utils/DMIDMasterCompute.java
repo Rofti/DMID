@@ -20,8 +20,8 @@ import org.apache.hadoop.io.LongWritable;
 public class DMIDMasterCompute extends DefaultMasterCompute {
 
 	public static final String RESTART_COUNTER_AGG = "aggRestart";
-	public static final double PROFTIABILITY_DELTA = 0.1;
-	private static final boolean LOG_AGGS = true;
+	public static final double PROFTIABILITY_DELTA = 0.3;
+	private static final boolean LOG_AGGS = false;
 
 	@Override
 	public void initialize() throws InstantiationException,
@@ -48,13 +48,13 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 				DoubleMaxAggregator.class);
 		registerPersistentAggregator(RESTART_COUNTER_AGG,
 				LongMaxAggregator.class);
-		registerAggregator(DMIDComputation.RW_INFINITYNORM_AGG,
-				DoubleMaxAggregator.class);
-		registerAggregator(DMIDComputation.RW_FINISHED_AGG,
-				LongMaxAggregator.class);
+		//registerAggregator(DMIDComputation.RW_INFINITYNORM_AGG,
+			//	DoubleMaxAggregator.class);
+		//registerAggregator(DMIDComputation.RW_FINISHED_AGG,
+				//LongMaxAggregator.class);
 
 		setAggregatedValue(DMIDComputation.PROFITABILITY_AGG,
-				new DoubleWritable(0.9));
+				new DoubleWritable(0.5));
 		setAggregatedValue(RESTART_COUNTER_AGG, new LongWritable(1));
 		setAggregatedValue(DMIDComputation.ITERATION_AGG, new LongWritable(0));
 
@@ -67,36 +67,33 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 		 * compute, before starting vertex compute of the same superstep. Does
 		 * not work with OverwriteAggregators
 		 */
-
-		DoubleWritable norm = getAggregatedValue(DMIDComputation.RW_INFINITYNORM_AGG);
-
-		if (getSuperstep() > 3
-				&& (norm.get() <= 0.001 || getSuperstep() > DMIDComputation.RW_ITERATIONBOUND + 3)) {
-			setAggregatedValue(DMIDComputation.RW_FINISHED_AGG,
-					new LongWritable(getSuperstep()));
-		}
+		
 
 		LongWritable iterCount = getAggregatedValue(DMIDComputation.ITERATION_AGG);
-		LongWritable rwFinished = getAggregatedValue(DMIDComputation.RW_FINISHED_AGG);
+		
 		boolean hasCascadingStarted = false;
 		LongWritable newIterCount = new LongWritable((iterCount.get() + 1));
-
+		
+		
 		if (iterCount.get() != 0) {
 			/** Cascading behavior started increment the iteration count */
 			setAggregatedValue(DMIDComputation.ITERATION_AGG, newIterCount);
 			hasCascadingStarted = true;
 		}
 
-		if (getSuperstep() == rwFinished.get() + 4) {
-			setAggregatedValue(DMIDComputation.ITERATION_AGG, new LongWritable(
-					1));
+		if (getSuperstep() ==  DMIDComputation.RW_ITERATIONBOUND+ 8) {
+			setAggregatedValue(DMIDComputation.NEW_MEMBER_AGG,
+					new BooleanWritable(false));
+			setAggregatedValue(DMIDComputation.NOT_ALL_ASSIGNED_AGG,
+					new BooleanWritable(true));
+			setAggregatedValue(DMIDComputation.ITERATION_AGG, new LongWritable(1));
 			hasCascadingStarted = true;
 			initializeGL();
 		}
-
 		if (hasCascadingStarted && (newIterCount.get() % 3 == 1)) {
 			/** first step of one iteration */
-
+			LongWritable restartCountWritable = getAggregatedValue(RESTART_COUNTER_AGG);
+			Long restartCount=restartCountWritable.get();
 			BooleanWritable newMember = getAggregatedValue(DMIDComputation.NEW_MEMBER_AGG);
 			BooleanWritable notAllAssigned = getAggregatedValue(DMIDComputation.NOT_ALL_ASSIGNED_AGG);
 
@@ -105,7 +102,7 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 				 * RESTART Cascading Behavior with lower profitability threshold
 				 */
 
-				long restartCount = getAggregatedValue(RESTART_COUNTER_AGG);
+				
 				double newThreshold = 1 - (PROFTIABILITY_DELTA * (restartCount + 1));
 
 				setAggregatedValue(RESTART_COUNTER_AGG, new LongWritable(
@@ -133,29 +130,29 @@ public class DMIDMasterCompute extends DefaultMasterCompute {
 		}
 
 		if (LOG_AGGS) {
-			if (getSuperstep() == DMIDComputation.RW_ITERATIONBOUND + 4) {
+			if (getSuperstep() <= DMIDComputation.RW_ITERATIONBOUND + 4) {
 				DoubleDenseVector convergedDA = getAggregatedValue(DMIDComputation.DA_AGG);
-				System.out.print("Aggregator DA after convergence: \nsize="
-						+ getTotalNumVertices() + "\n[ ");
+				System.out.print("Aggregator DA at step: "+getSuperstep()+" \nsize="
+						+ getTotalNumVertices() + "\n{ ");
 				for (int i = 0; i < getTotalNumVertices(); ++i) {
 					System.out.print(convergedDA.get(i));
 					if (i != getTotalNumVertices() - 1) {
 						System.out.print(" , ");
 					} else {
-						System.out.println(" ]\n");
+						System.out.println(" }\n");
 					}
 				}
 			}
-			if (getSuperstep() == DMIDComputation.RW_ITERATIONBOUND + 6) {
+			if (getSuperstep() == DMIDComputation.RW_ITERATIONBOUND +6) {
 				DoubleDenseVector leadershipVector = getAggregatedValue(DMIDComputation.LS_AGG);
 				System.out.print("Aggregator LS: \nsize="
-						+ getTotalNumVertices() + "\n[ ");
+						+ getTotalNumVertices() + "\n{ ");
 				for (int i = 0; i < getTotalNumVertices(); ++i) {
 					System.out.print(leadershipVector.get(i));
 					if (i != getTotalNumVertices() - 1) {
 						System.out.print(" , ");
 					} else {
-						System.out.println(" ]\n");
+						System.out.println(" }\n");
 					}
 				}
 			}

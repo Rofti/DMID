@@ -18,7 +18,10 @@ public class ExtendedModularityMetricNPNB08 {
 		long counter=0;
 		long laststep=((long) graph.vertexSet().size())*((long)graph.vertexSet().size())+graph.vertexSet().size();
 
-		cover.normalizeMembershipMatrix(cover.getMemberships());
+		//cover.normalizeMembershipMatrix(cover.getMemberships());
+		//cover.filterMembershipsbyThreshold(0.2);
+		//cover.normalizeMembershipMatrix(cover.getMemberships());
+		
 		for(Node nodeA : graph.vertexSet()){
 			for(Node nodeB : graph.vertexSet()){
 
@@ -49,13 +52,10 @@ public class ExtendedModularityMetricNPNB08 {
 		for(Integer comID : cover.getCommunityIndices(nodeA)){
 			
 			if( cover.getCommunityIndices(nodeB).contains(comID)){
-				try{
+				
 				comembership += (nodeA.getOwnCommunities().get(comID)
 						* nodeB.getOwnCommunities().get(comID)) ;
-				}catch(Exception e){
-					System.out.println("nodaA: "+nodeA.getIndex()+" "+(nodeA.getOwnCommunities()==null) +" nodeB "+nodeB.getIndex()+" "+ (nodeB.getOwnCommunities()==null) );
-					System.exit(0);
-				}
+				
 			}
 		}
 		

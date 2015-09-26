@@ -631,7 +631,25 @@ public class Main {
 		
 		Matrix memberships = new /*CCSMatrix*/Basic2DMatrix(cover.getGraph().vertexSet().size(),cleanCommunityIDs.size());
 		
+		Node nodeFixed=new Node(0);
+		Node brokenNode=new Node(memberships.rows());
+		for(Node node: cover.getGraph().vertexSet()){
+			if(node.getIndex()==memberships.rows()){
+			  brokenNode=node;
+			}
+		}
 		System.out.println("Create membership matrix");
+		nodeFixed.setOwnCommunities(brokenNode.getOwnCommunities());
+		cover.getGraph().addVertex(nodeFixed);
+		for(Edge edge:cover.getGraph().outgoingEdgesOf(brokenNode)){
+			cover.getGraph().addEdge(nodeFixed, edge.getTarget());
+		}
+		for(Edge edge:cover.getGraph().incomingEdgesOf(brokenNode)){
+			cover.getGraph().addEdge(edge.getSource(), nodeFixed);
+		}
+		cover.getGraph().removeVertex(brokenNode);
+		
+
 		HashMap<Integer, Double> communities;
 		int nodeCounter=0;
 		int numNodes =cover.getGraph().vertexSet().size();
