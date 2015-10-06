@@ -9,7 +9,6 @@ import java.util.Set;
 
 /**
  * Represents the node of the undirected graph.
- * @author pejakalabhargava
  *
  */
 public class Node {

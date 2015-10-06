@@ -71,4 +71,9 @@ public class Node {
          String result = ""+this.index ;
         return result.hashCode();
     }
+
+	public void setOwnCommunities(HashMap<Integer, Double> ownCommunities) {
+		this.ownCommunities=ownCommunities;
+		
+	}
 }

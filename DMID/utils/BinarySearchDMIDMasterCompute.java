@@ -54,11 +54,11 @@ public class BinarySearchDMIDMasterCompute extends DefaultMasterCompute {
 		registerPersistentAggregator(RESTART_COUNTER_AGG,
 				LongMaxAggregator.class);
 		
-		registerAggregator(DMIDComputation.RW_INFINITYNORM_AGG,
+	/*	registerAggregator(DMIDComputation.RW_INFINITYNORM_AGG,
 				DoubleMaxAggregator.class);
 		registerAggregator(DMIDComputation.RW_FINISHED_AGG,
 				LongMaxAggregator.class);
-
+*/
 		setAggregatedValue(DMIDComputation.PROFITABILITY_AGG,
 				new DoubleWritable(0.5));
 		setAggregatedValue(DMIDComputation.ITERATION_AGG, new LongWritable(0));
@@ -73,16 +73,16 @@ public class BinarySearchDMIDMasterCompute extends DefaultMasterCompute {
 		 * not work with OverwriteAggregators
 		 */
 
-		DoubleWritable norm = getAggregatedValue(DMIDComputation.RW_INFINITYNORM_AGG);
+	//	DoubleWritable norm = getAggregatedValue(DMIDComputation.RW_INFINITYNORM_AGG);
 
-		if (getSuperstep() > 3
+		/*if (getSuperstep() > 3
 				&& (norm.get() <= 0.001 || getSuperstep() > DMIDComputation.RW_ITERATIONBOUND + 3)) {
 			setAggregatedValue(DMIDComputation.RW_FINISHED_AGG,
 					new LongWritable(getSuperstep()));
-		}
+		}*/
 
 		LongWritable iterCount = getAggregatedValue(DMIDComputation.ITERATION_AGG);
-		LongWritable rwFinished = getAggregatedValue(DMIDComputation.RW_FINISHED_AGG);
+		LongWritable rwFinished = null;//getAggregatedValue(DMIDComputation.RW_FINISHED_AGG);
 		boolean hasCascadingStarted = false;
 		LongWritable newIterCount = new LongWritable((iterCount.get() + 1));
 

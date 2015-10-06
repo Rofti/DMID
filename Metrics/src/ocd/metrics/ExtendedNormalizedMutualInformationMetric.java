@@ -39,15 +39,16 @@ public class ExtendedNormalizedMutualInformationMetric{
 	 */
 	private double calculateArbitraryConditionalEntropy(Matrix cover1, Matrix cover2, Integer nodeCount,
 			Map<Integer, Integer> cover1CommunitySizes, Map<Integer, Integer> cover2CommunitySizes){
-		Matrix cover1Memberships = cover1;//.getMemberships();
-		Matrix cover2Memberships = cover2;//.getMemberships();
+		Matrix cover1Memberships = cover1;
+		Matrix cover2Memberships = cover2;
 		double minParticularConditionalEntropy;
 		double currentParticularConditionalEntropy;
 		double arbitraryConditionalEntropy = 0;
 		double communityEntropy;
 		double probability_x0;
 		double probability_x1;
-		//int nodeCount = cover1.getGraph().vertexSet().size();
+		
+		
 		long counter=0;
 		long laststep=cover1.columns()*cover2.columns();
 		for(int i=0; i<cover1.columns()/*communityCount()*/; i++) {
@@ -164,22 +165,6 @@ public class ExtendedNormalizedMutualInformationMetric{
 	private Map<Integer, Integer> determineCommunitySizes(Matrix cover) {
 		Map<Integer, Integer> communitySizes = new HashMap<Integer, Integer>();
 
-		/*for(int i=0; i<cover.rows(); i++) {
-			if(i%100000==0){
-				System.out.println("remaining steps:" +i +" / "+cover.rows());
-			}
-			NonZeroEntriesVectorProcedure procedure = new NonZeroEntriesVectorProcedure();
-			cover.getRow(i).each(procedure);
-			List<Integer> nonZeroEntries = procedure.getNonZeroEntries();
-			for(int j : nonZeroEntries) {
-				Integer curSizeCommunity = communitySizes.get(j);
-				if(curSizeCommunity!=null){
-					communitySizes.put(j, communitySizes.get(j)+1);
-				}else{
-					communitySizes.put(j,1);
-				}
-			}	
-		}*/
 		for(int i=0; i<cover.columns(); i++) {
 			if(i%1000==0){
 				System.out.println("remaining steps:" +i +" / "+cover.columns());

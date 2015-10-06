@@ -33,14 +33,7 @@ public class RandomWalkLabelPropagationAlgorithm{
 	 * value is 1000. Must be greater than 0.
 	 */
 	private int randomWalkIterationBound = 100;
-	/**
-	 * The precision factor for the random walk phase. The phase ends
-	 * when the infinity norm of the difference between the updated vector and
-	 * the previous one is smaller than this factor.
-	 * The default value is 0.001. Must be greater than 0 and smaller than infinity.
-	 * Recommended are values close to 0.
-	 */
-	private double randomWalkPrecisionFactor = 0.001;
+
 	/**
 	 * The profitability step size for the label propagation phase. The default
 	 * value is 0.1.  Must be in (0, 1).

@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 
-
 import org.apache.giraph.graph.BasicComputation;
 import org.apache.giraph.graph.Vertex;
 import org.apache.giraph.edge.Edge;
@@ -70,7 +69,7 @@ public abstract class DMIDComputation
 	public static final String PROFITABILITY_AGG = "aggProfit";
 
 	/** Maximum steps for the random walk, corresponds to t*. Default = 1000 */
-	public static final long RW_ITERATIONBOUND = 1000;
+	public static final long RW_ITERATIONBOUND = 10;
 
 	/**
 	 * Aggregator name for the random walk precision factor. Stores the infinity
@@ -78,10 +77,10 @@ public abstract class DMIDComputation
 	 * The random walk phase ends when the aggregator stores a value smaller
 	 * than 0.001.
 	 */
-	public static final String RW_INFINITYNORM_AGG = "aggPrecision";
+	//public static final String RW_INFINITYNORM_AGG = "aggPrecision";
 	
 	/** Aggregator name. Holds the superstep on which the random walk phase finished*/
-	public static final String RW_FINISHED_AGG="aggFinishedRW";
+	//public static final String RW_FINISHED_AGG="aggFinishedRW";
 
 	@Override
 	public void compute(
@@ -100,9 +99,9 @@ public abstract class DMIDComputation
 			superstep2(vertex, messages);
 		}
 		
-		double rwPrecision = ((DoubleWritable)getAggregatedValue(RW_INFINITYNORM_AGG)).get();
+		//double rwPrecision = ((DoubleWritable)getAggregatedValue(RW_INFINITYNORM_AGG)).get();
 		
-		if ((getSuperstep() >= 3 && getSuperstep() <= RW_ITERATIONBOUND + 3) && (getSuperstep() == 3 || rwPrecision >0.001) ) {
+		if ((getSuperstep() >= 3 && getSuperstep() <= RW_ITERATIONBOUND + 3) /*&& (getSuperstep() == 3 || rwPrecision >0.001)*/ ) {
 			/**
 			 * TODO: Integrate a precision factor for the random walk phase. The
 			 * phase ends when the infinity norm of the difference between the
@@ -111,7 +110,7 @@ public abstract class DMIDComputation
 			superstepRW(vertex, messages);
 		}
 
-		long rwFinished = ((LongWritable)getAggregatedValue(RW_FINISHED_AGG)).get();
+		long rwFinished = RW_ITERATIONBOUND + 4;
 		
 		
 		if (getSuperstep() == rwFinished) {
@@ -132,21 +131,22 @@ public abstract class DMIDComputation
 
 		if (getSuperstep() == rwFinished + 3) {
 			superstep7(vertex, messages);
+			
 		}
 
 		LongWritable iterationCounter = getAggregatedValue(ITERATION_AGG);
 		double it = iterationCounter.get();
 
-		if (getSuperstep() == rwFinished +4
-				|| (it % 3 == 1 && getSuperstep() > rwFinished +4)) {
+		if (getSuperstep() >= rwFinished +4
+				&& (it % 3 == 1 )) {
 			superstep8(vertex, messages);
 		}
-		if (getSuperstep() == rwFinished +5
-				|| (it % 3 == 2 && getSuperstep() > rwFinished +5)) {
+		if (getSuperstep() >= rwFinished +5
+				&& (it % 3 == 2 )) {
 			superstep9(vertex, messages);
 		}
-		if (getSuperstep() == rwFinished +6
-				|| (it % 3 == 0 && getSuperstep() > rwFinished +6)) {
+		if (getSuperstep() >= rwFinished +6
+				&& (it % 3 == 0 )) {
 			superstep10(vertex, messages);
 		}
 
@@ -243,12 +243,14 @@ public abstract class DMIDComputation
 		 * Normalize the new disCol (Note: a new Vector is automatically
 		 * initialized 0.0f entries)
 		 */
+		
 		for (int i = 0; disSum != 0 && i < (int) getTotalNumVertices(); ++i) {
 			disVector.set(i, (disVector.get(i) / disSum));
+			
 		}
+
 		/** save the new disCol in the vertexValue */
 		vertex.getValue().setDisCol(disVector, getTotalNumVertices());
-
 		/**
 		 * Initialize DA for the RW steps with 1/N for your own entry
 		 * (aggregatedValue will be(1/N,..,1/N) in the next superstep)
@@ -278,17 +280,15 @@ public abstract class DMIDComputation
 		 */
 		/** (corresponds to vector matrix multiplication R^1xN * R^NxN) */
 		double newEntryDA = 0.0;
-
 		for (int i = 0; i < getTotalNumVertices(); ++i) {
 			newEntryDA += (curDA.get(i) * disCol.get(i));
 		}
+		
 		DoubleDenseVector newDA = new DoubleDenseVector(
 				(int) getTotalNumVertices());
 		newDA.set((int) vertex.getId().get(), newEntryDA);
 		aggregate(DA_AGG, newDA);
 		
-		DoubleWritable infinityNorm= new DoubleWritable( Math.abs(curDA.get((int)vertex.getId().get())- newEntryDA));
-		aggregate(RW_INFINITYNORM_AGG,  infinityNorm );
 	}
 
 	/**
@@ -426,13 +426,14 @@ public abstract class DMIDComputation
 			Iterable<LongDoubleMessage> messages) {
 
 		Long vertexID = vertex.getId().get();
-
+		DoubleWritable profitability = getAggregatedValue(DMIDComputation.PROFITABILITY_AGG);
 		/** Is this vertex a global leader? Global Leader do not change behavior */
-		if (!vertex.getValue().getMembershipDegree().containsKey(vertexID)) {
+		if (!vertex.getValue().getMembershipDegree().containsKey(vertexID)||profitability.get()<0) {
 			BooleanWritable notAllAssigned = getAggregatedValue(NOT_ALL_ASSIGNED_AGG);
+			BooleanWritable newMember = getAggregatedValue(NEW_MEMBER_AGG);
 			if (notAllAssigned.get()) {
 				/** There are vertices that are not part of any community */
-				BooleanWritable newMember = getAggregatedValue(NEW_MEMBER_AGG);
+
 				if (!newMember.get()) {
 					/**
 					 * There are no changes in the behavior cascade but not all
@@ -452,14 +453,19 @@ public abstract class DMIDComputation
 				/** In case of first init test again if vertex is leader */
 				if (!vertex.getValue().getMembershipDegree()
 						.containsKey(vertexID)) {
+					
 					for (Long leaderID : vertex.getValue()
 							.getMembershipDegree().keySet()) {
 						/**
 						 * message of the form (ownID, community ID of interest)
 						 */
-						LongDoubleMessage msg = new LongDoubleMessage(vertexID,
-								leaderID);
-						sendMessageToAllEdges(vertex, msg);
+						if(vertex.getValue()
+								.getMembershipDegree().get(leaderID)==0){
+							LongDoubleMessage msg = new LongDoubleMessage(vertexID,
+									leaderID);
+							sendMessageToAllEdges(vertex, msg);
+						}
+
 					}
 				} else {
 					vertex.voteToHalt();
@@ -489,11 +495,12 @@ public abstract class DMIDComputation
 		 */
 		for (LongDoubleMessage msg : messages) {
 
-			Long leaderID = ((long) msg.getValue());
+			long leaderID = ((long) msg.getValue());
 			/**
 			 * send a message back with the same double entry if this vertex is
 			 * part of this specific community
 			 */
+			
 			if (vertex.getValue().getMembershipDegree().get(leaderID) != 0.0) {
 				LongDoubleMessage answerMsg = new LongDoubleMessage(vertex
 						.getId().get(), leaderID);
@@ -521,21 +528,33 @@ public abstract class DMIDComputation
 		HashMap<Long, Double> newMemDeg = new HashMap<Long, Double>();
 
 		for (long i = 0; i < getTotalNumVertices(); ++i) {
-			/** is entry i a global leader? */
-			if (vecGL.get((int) i) == 1.0) {
-
-				if (((long) i) == vertex.getId().get()) {
+			/** only global leader have entries 1.0 the rest will return 0*/
+			if(vecGL.get((int) i)!=0){
+				/** is entry i a global leader?*/
+				if(i == vertex.getId().get()){
 					/**
 					 * This vertex is a global leader. Set Membership degree to
 					 * 100%
 					 */
 					newMemDeg.put(new Long(i), new Double(1.0));
-				} else {
-					newMemDeg.put(new Long(i), new Double(0.0));
+
 				}
+				else{
+					newMemDeg.put(new Long(i), new Double(0.0));
+
+				}
+				
 			}
 		}
-
+		/** is entry i a global leader? */
+		if (vecGL.get((int) vertex.getId().get())!=0 ) {
+			/**
+			 * This vertex is a global leader. Set Membership degree to
+			 * 100%
+			 */
+			newMemDeg.put(new Long(vertex.getId().get()), new Double(1.0));
+		}
+		
 		vertex.getValue().setMembershipDegree(newMemDeg);
 	}
 }

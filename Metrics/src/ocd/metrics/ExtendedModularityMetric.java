@@ -18,22 +18,7 @@ public class ExtendedModularityMetric {
 	public double measure(Cover cover) {
 		double metricValue = 0;
 		SimpleDirectedWeightedGraph<Node,Edge> graph = cover.getGraph();
-	/*	Node[] nodesA = graph.vertexSet().toArray(new Node[graph.vertexSet().size()]);
-		Node[] nodesB = graph.vertexSet().toArray(new Node[graph.vertexSet().size()]);
-		Node nodeA;
-		Node nodeB;
-		int j=0;
-		for(int i=0; i< nodesA.length;++i){
-			nodeA = nodesA[i];
-			j=0;
-			while(j<=i) {
-				nodeB = nodesB[j];
-				metricValue +=
-						getNodePairModularityContribution(cover, nodeA, nodeB);
-				j++;
-			}
-		}
-	*/
+
 		long counter=0;
 		long laststep=((long) graph.vertexSet().size())*((long)graph.vertexSet().size())+graph.vertexSet().size();
 		laststep=laststep/2;

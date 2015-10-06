@@ -51,10 +51,13 @@ public class DMIDVertexOutputFormat extends
         DMIDVertexValue vertexValue = vertex.getValue();
         JSONArray jsonMemDegArray = new JSONArray();
         for(Map.Entry<Long, Double> entry : vertexValue.getMembershipDegree().entrySet()){
-        	JSONArray jsonDegreeEntry = new JSONArray();
-        	jsonDegreeEntry.put(entry.getKey());
-        	jsonDegreeEntry.put(entry.getValue());
-        	jsonMemDegArray.put(jsonDegreeEntry);
+        	if(entry.getValue()!=0){
+        		JSONArray jsonDegreeEntry = new JSONArray();
+            	jsonDegreeEntry.put(entry.getKey());
+            	jsonDegreeEntry.put(entry.getValue());
+            	jsonMemDegArray.put(jsonDegreeEntry);
+        	}
+        	
         }
         jsonVertex.put(jsonMemDegArray);
       } catch (Exception e) {

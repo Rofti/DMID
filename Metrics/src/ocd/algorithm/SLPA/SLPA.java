@@ -28,15 +28,7 @@ import org.json.JSONArray;
  *		c. The listener adds the most popular label received to its memory.
  *	3)	Finally, the post-processing based on the labels in the memories and the threshold
  *		r is applied to output the communities.
- * 
- * Run as: 	mvn clean install
- * 		 	mvn exec:java -Dexec.args="amazon.graph.original amazon.graph.comm 20 0.5" from command line.
- * 		    or
- * 		   	mvn clean install
- * 			cd target
- * 			java -jar slpa-0.0.1.jar amazon.graph.original amazon.graph.comm 20 0.5
- * 
- * @author pejakalabhargava
+ *
  *
  */
 public class SLPA {
@@ -165,7 +157,7 @@ public class SLPA {
 	}
 	
 	/**
-	* Fisher–Yates shuffle(http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle)
+	* Fisher–Yates shuffle
 	* function to shuffle the elements of a given integer array.
 	*/
 	private void ShuffleArray(int[] array)

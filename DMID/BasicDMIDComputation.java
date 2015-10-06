@@ -50,7 +50,9 @@ public class BasicDMIDComputation extends DMIDComputation {
 
 			LongWritable iterationCounter = getAggregatedValue(ITERATION_AGG);
 
+			
 			for (Map.Entry<Long, Double> entry : membershipCounter.entrySet()) {
+			
 				if ((entry.getValue() / vertex.getNumEdges()) > threshold.get()) {
 					/** its profitable to become a member, set value */
 					vertex.getValue()
@@ -58,10 +60,13 @@ public class BasicDMIDComputation extends DMIDComputation {
 							.put(entry.getKey(),
 									(1.0 / Math.pow(iterationCounter.get() / 3,
 											2)));
+					
 					aggregate(NEW_MEMBER_AGG, new BooleanWritable(true));
 				}
 			}
-			boolean isPartOfAnyCommunity = false;
+	/*		vertex.getValue().setBestValidMemDeg(vertex.getValue()
+							.getMembershipDegree());
+	*/		boolean isPartOfAnyCommunity = false;
 			for (Map.Entry<Long, Double> entry : vertex.getValue()
 					.getMembershipDegree().entrySet()) {
 				if (entry.getValue() != 0.0) {
@@ -69,8 +74,11 @@ public class BasicDMIDComputation extends DMIDComputation {
 				}
 			}
 			if (!isPartOfAnyCommunity) {
+				
 				aggregate(NOT_ALL_ASSIGNED_AGG, new BooleanWritable(true));
 			}
+		}else{
+			vertex.voteToHalt();
 		}
 
 	}

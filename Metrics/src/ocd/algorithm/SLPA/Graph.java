@@ -14,16 +14,10 @@ import org.json.JSONException;
 /**
  * Data structure the hold the undirected graph on which clustering algorithm is run to
  * find the overlapping communities using SLPA algorithm.
- * @author pejakalabhargava
+ * 
  *
  */
 public class Graph {
-	
-	//Number of edges in the graph
-	//int edges;
-	
-	//Number of vertices of the graph
-	//int vertices;
 	
 	//This holds the id of the node and the reference to corresponding Node reference
 	Map<Integer, Node> graphADT;
